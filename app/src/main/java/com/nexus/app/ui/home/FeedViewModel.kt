@@ -11,6 +11,7 @@ import com.nexus.app.data.FriendRepository
 import com.nexus.app.data.NotificationRepository
 import com.nexus.app.data.PostRepository
 import com.nexus.app.data.PostUi
+import com.nexus.app.data.ReportRepository
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -33,6 +34,7 @@ class FeedViewModel(private val uid: String) : ViewModel() {
     private val repo = PostRepository()
     private val friendRepo = FriendRepository()
     private val notifRepo = NotificationRepository()
+    private val reportRepo = ReportRepository()
 
     private val _state = MutableStateFlow(FeedState())
     val state: StateFlow<FeedState> = _state
@@ -180,6 +182,19 @@ class FeedViewModel(private val uid: String) : ViewModel() {
                     it.copy(post = it.post.copy(commentCount = (it.post.commentCount + delta).coerceAtLeast(0)))
                 } else it
             })
+        }
+    }
+
+    // Report someone else's post. The answer shows as a small message at the bottom.
+    fun reportPost(post: com.nexus.app.data.Post, reason: String, details: String) {
+        viewModelScope.launch {
+            val message = try {
+                reportRepo.create(uid, "post", post.id, post.authorId, reason, details)
+                "Report sent. Thank you."
+            } catch (e: Exception) {
+                "You already reported this post, or reporting isn't allowed right now."
+            }
+            _state.update { it.copy(error = message) }
         }
     }
 

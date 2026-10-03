@@ -13,11 +13,8 @@ import java.net.URL
 // We store only that link in Firestore, never the image itself.
 object CloudinaryUploader {
     suspend fun upload(resolver: ContentResolver, uri: Uri): String = withContext(Dispatchers.IO) {
-        val bytes = resolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: throw IllegalStateException("Could not read that image.")
-        if (bytes.size > 10 * 1024 * 1024) {
-            throw IllegalStateException("Image is bigger than 10 MB. Pick a smaller one.")
-        }
+        // Shrink the photo first so it uploads fast
+        val bytes = ImageCompressor.compress(resolver, uri)
 
         val boundary = "----nexus" + System.currentTimeMillis()
         val url = URL("https://api.cloudinary.com/v1_1/${Config.CLOUDINARY_CLOUD_NAME}/image/upload")

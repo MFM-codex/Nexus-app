@@ -1,4 +1,4 @@
-# Nexus (Phase 4)
+# Nexus (Phase 5)
 
 Kotlin + Jetpack Compose + Firebase Auth/Firestore + Cloudinary (images).
 
@@ -32,3 +32,16 @@ users/{uid}/notifications/{id}  actorId -> users, type, postId, read, createdAt 
 Firestore > Indexes > Composite > Add index
   Collection ID: posts | Fields: authorId (Ascending), createdAt (Descending) | Query scope: Collection
 Wait until its status says Enabled.
+
+## Making yourself an admin (Phase 5)
+1. Firebase > Authentication > Users: copy your "User UID".
+2. Firestore > Start collection > Collection ID: admins > Document ID: paste your UID
+   > add any field (for example role = admin) > Save.
+3. Reopen the app: your Profile tab now shows an "Admin panel" button.
+To lift a ban: Firestore > banned > delete that person's document.
+
+## More collections (Phase 5)
+users/{uid}/blocked/{id}   createdAt                                           [Phase 5 done]
+reports/{uid_type_target}  reporterId, targetType, targetId, targetUserId, reason, details, status, createdAt  [Phase 5 done]
+admins/{uid}               (you create by hand)                               [Phase 5 done]
+banned/{uid}               by, createdAt                                      [Phase 5 done]

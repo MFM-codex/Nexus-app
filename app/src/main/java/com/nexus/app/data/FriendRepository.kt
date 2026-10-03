@@ -71,6 +71,34 @@ class FriendRepository {
         friendships.document(pairId(me, other)).delete().await()
     }
 
+    // Live list of the people I blocked. Stored at users/{me}/blocked/{theirId}.
+    fun observeBlocked(me: String): Flow<Set<String>> = callbackFlow {
+        val registration = users.document(me).collection("blocked")
+            .addSnapshotListener { snap, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                trySend(snap?.documents?.map { it.id }?.toSet() ?: emptySet())
+            }
+        awaitClose { registration.remove() }
+    }
+
+    // Blocking also removes any friendship or request between us.
+    suspend fun block(me: String, other: String, hadRelation: Boolean) {
+        val batch = db.batch()
+        batch.set(
+            users.document(me).collection("blocked").document(other),
+            mapOf("createdAt" to FieldValue.serverTimestamp())
+        )
+        if (hadRelation) batch.delete(friendships.document(pairId(me, other)))
+        batch.commit().await()
+    }
+
+    suspend fun unblock(me: String, other: String) {
+        users.document(me).collection("blocked").document(other).delete().await()
+    }
+
     // Find people whose username starts with the text typed.
     suspend fun searchUsers(prefix: String): List<Profile> =
         users.orderBy("username")

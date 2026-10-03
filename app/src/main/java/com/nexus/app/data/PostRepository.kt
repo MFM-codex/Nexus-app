@@ -91,6 +91,12 @@ class PostRepository {
         return uids.mapNotNull { id -> authorCache[id]?.let { id to it } }.toMap()
     }
 
+    // Load one post (used by the admin panel).
+    suspend fun getPost(postId: String): Post? {
+        val doc = posts.document(postId).get().await()
+        return if (doc.exists()) doc.toPost() else null
+    }
+
     // Who wrote this post? (used to notify them about comments)
     suspend fun authorOf(postId: String): String? =
         posts.document(postId).get().await().getString("authorId")

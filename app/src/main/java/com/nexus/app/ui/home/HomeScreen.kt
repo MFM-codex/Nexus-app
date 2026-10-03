@@ -97,6 +97,7 @@ fun HomeScreen(
                         onComment = { onOpenComments(item.post.id) },
                         onEdit = { text -> vm.editPost(item.post.id, text) },
                         onDelete = { vm.deletePost(item.post.id) },
+                        onReport = { reason, details -> vm.reportPost(item.post, reason, details) },
                     )
                     HorizontalDivider()
                 }

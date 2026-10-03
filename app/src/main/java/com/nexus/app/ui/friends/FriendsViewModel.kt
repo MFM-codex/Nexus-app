@@ -8,6 +8,7 @@ import com.nexus.app.data.Friendship
 import com.nexus.app.data.NotificationRepository
 import com.nexus.app.data.Profile
 import com.nexus.app.data.Relation
+import com.nexus.app.data.ReportRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -23,12 +24,14 @@ data class FriendsState(
     val query: String = "",                            // what I typed in the search box
     val results: List<Profile> = emptyList(),
     val searching: Boolean = false,
+    val blocked: Set<String> = emptySet(),             // people I blocked
     val error: String? = null,
 )
 
 class FriendsViewModel(private val me: String) : ViewModel() {
     private val repo = FriendRepository()
     private val notifRepo = NotificationRepository()
+    private val reportRepo = ReportRepository()
 
     private val _state = MutableStateFlow(FriendsState())
     val state: StateFlow<FriendsState> = _state
@@ -49,6 +52,12 @@ class FriendsViewModel(private val me: String) : ViewModel() {
                     }
                     _state.update { it.copy(friendships = list, profiles = it.profiles + loaded) }
                 }
+        }
+        // Live list of people I blocked
+        viewModelScope.launch {
+            repo.observeBlocked(me)
+                .catch { /* not important */ }
+                .collect { blocked -> _state.update { it.copy(blocked = blocked) } }
         }
     }
 
@@ -82,7 +91,8 @@ class FriendsViewModel(private val me: String) : ViewModel() {
             delay(400)
             _state.update { it.copy(searching = true) }
             try {
-                val found = repo.searchUsers(clean).filter { it.uid != me }
+                val found = repo.searchUsers(clean)
+                    .filter { it.uid != me && !_state.value.blocked.contains(it.uid) }
                 _state.update { it.copy(results = found, searching = false) }
             } catch (e: CancellationException) {
                 throw e
@@ -93,7 +103,14 @@ class FriendsViewModel(private val me: String) : ViewModel() {
     }
 
     fun sendRequest(other: String) = launchAction {
-        repo.sendRequest(me, other)
+        try {
+            repo.sendRequest(me, other)
+        } catch (e: Exception) {
+            if (e.message?.contains("PERMISSION_DENIED") == true) {
+                throw IllegalStateException("You can't send a friend request to this person.")
+            }
+            throw e
+        }
         try {
             notifRepo.create(other, me, "friend_request")
         } catch (e: Exception) {
@@ -112,6 +129,25 @@ class FriendsViewModel(private val me: String) : ViewModel() {
 
     // Used for decline, cancel request and unfriend.
     fun remove(other: String) = launchAction { repo.remove(me, other) }
+
+    fun block(other: String) = launchAction {
+        repo.block(me, other, relationWith(other) != Relation.NONE)
+    }
+
+    fun unblock(other: String) = launchAction { repo.unblock(me, other) }
+
+    // onResult gets a message to show the user.
+    fun reportUser(other: String, reason: String, details: String, onResult: (String) -> Unit) {
+        viewModelScope.launch {
+            val message = try {
+                reportRepo.create(me, "user", other, other, reason, details)
+                "Report sent. Thank you."
+            } catch (e: Exception) {
+                "You already reported this person, or reporting isn't allowed right now."
+            }
+            onResult(message)
+        }
+    }
 
     fun clearError() {
         _state.update { it.copy(error = null) }

@@ -34,6 +34,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.google.firebase.auth.FirebaseUser
+import com.nexus.app.ui.admin.AdminScreen
+import com.nexus.app.ui.admin.AdminViewModel
+import com.nexus.app.ui.admin.AdminViewModelFactory
 import com.nexus.app.ui.alerts.AlertsScreen
 import com.nexus.app.ui.alerts.NotificationsViewModel
 import com.nexus.app.ui.alerts.NotificationsViewModelFactory
@@ -70,8 +73,23 @@ private val tabs = listOf(
 )
 
 // The signed-in app: bottom navigation bar + the screen for the selected tab.
+// If an admin banned this account we show a "suspended" page instead of the app.
 @Composable
 fun MainScaffold(user: FirebaseUser, onSignOut: () -> Unit) {
+    val adminVm: AdminViewModel = viewModel(
+        key = "admin_${user.uid}",
+        factory = AdminViewModelFactory(user.uid),
+    )
+    val banned by adminVm.banned.collectAsState()
+    if (banned) {
+        BannedScreen(onSignOut)
+    } else {
+        MainContent(user, adminVm, onSignOut)
+    }
+}
+
+@Composable
+private fun MainContent(user: FirebaseUser, adminVm: AdminViewModel, onSignOut: () -> Unit) {
     // key = uid so a different account never sees the previous account's data
     val profileVm: ProfileViewModel = viewModel(
         key = user.uid,
@@ -95,12 +113,13 @@ fun MainScaffold(user: FirebaseUser, onSignOut: () -> Unit) {
     )
     val unreadChats by chatsVm.totalUnread.collectAsState()
     val unreadAlerts by notifVm.unreadCount.collectAsState()
+    val isAdmin by adminVm.isAdmin.collectAsState()
     val nav = rememberNavController()
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
 
     // Full-screen pages hide the bottom bar
-    val hideBar = route == "editProfile" || route == "newPost" || route?.startsWith("comments") == true ||
+    val hideBar = route == "editProfile" || route == "newPost" || route == "admin" || route?.startsWith("comments") == true ||
         route?.startsWith("user/") == true ||
         route?.startsWith("chat/") == true
 
@@ -219,6 +238,15 @@ fun MainScaffold(user: FirebaseUser, onSignOut: () -> Unit) {
                     vm = profileVm,
                     onEdit = { nav.navigate("editProfile") },
                     onSignOut = onSignOut,
+                    isAdmin = isAdmin,
+                    onOpenAdmin = { nav.navigate("admin") },
+                )
+            }
+            composable("admin") {
+                AdminScreen(
+                    vm = adminVm,
+                    onBack = { nav.popBackStack() },
+                    onOpenUser = { id -> nav.navigate("user/$id") },
                 )
             }
             composable("editProfile") {

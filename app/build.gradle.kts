@@ -59,6 +59,7 @@ dependencies {
 
     // Images
     implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("androidx.exifinterface:exifinterface:1.3.7") // reads photo rotation
 
     // Firebase (Auth + Firestore)
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))

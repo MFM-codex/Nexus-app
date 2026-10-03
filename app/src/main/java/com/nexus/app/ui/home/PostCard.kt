@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.nexus.app.data.PostUi
 import com.nexus.app.ui.components.Avatar
+import com.nexus.app.ui.components.ReportDialog
 import com.nexus.app.ui.components.timeAgo
 
 // One post in the feed.
@@ -51,12 +52,14 @@ fun PostCard(
     onComment: () -> Unit,
     onEdit: (String) -> Unit,
     onDelete: () -> Unit,
+    onReport: (String, String) -> Unit,
 ) {
     val post = item.post
     val name = item.author?.name ?: "Unknown user"
     var menuOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var reporting by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxWidth().padding(12.dp)) {
         // Header: avatar, name, time, and a menu for your own posts
@@ -73,12 +76,12 @@ fun PostCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (isMine) {
-                Box {
-                    IconButton(onClick = { menuOpen = true }) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "More")
-                    }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = "More")
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    if (isMine) {
                         DropdownMenuItem(
                             text = { Text("Edit") },
                             onClick = { menuOpen = false; editing = true },
@@ -86,6 +89,11 @@ fun PostCard(
                         DropdownMenuItem(
                             text = { Text("Delete") },
                             onClick = { menuOpen = false; confirmDelete = true },
+                        )
+                    } else {
+                        DropdownMenuItem(
+                            text = { Text("Report post") },
+                            onClick = { menuOpen = false; reporting = true },
                         )
                     }
                 }
@@ -165,5 +173,14 @@ fun PostCard(
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
         )
+    }
+    if (reporting) {
+        ReportDialog(
+            title = "Report this post",
+            onDismiss = { reporting = false },
+        ) { reason, details ->
+            reporting = false
+            onReport(reason, details)
+        }
     }
 }

@@ -32,7 +32,13 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 
 @Composable
-fun ProfileScreen(vm: ProfileViewModel, onEdit: () -> Unit, onSignOut: () -> Unit) {
+fun ProfileScreen(
+    vm: ProfileViewModel,
+    onEdit: () -> Unit,
+    onSignOut: () -> Unit,
+    isAdmin: Boolean = false,
+    onOpenAdmin: () -> Unit = {},
+) {
     val profile by vm.profile.collectAsState()
     val setupError by vm.setupError.collectAsState()
     val p = profile
@@ -66,6 +72,10 @@ fun ProfileScreen(vm: ProfileViewModel, onEdit: () -> Unit, onSignOut: () -> Uni
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(onClick = onEdit) { Text("Edit profile") }
                 OutlinedButton(onClick = onSignOut) { Text("Sign out") }
+            }
+            if (isAdmin) {
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(onClick = onOpenAdmin) { Text("Admin panel") }
             }
         }
     }

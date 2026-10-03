@@ -6,6 +6,19 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // ---------- MODERATION (Phase 5) ----------
+
+    // An admin is anyone with a document in the "admins" collection.
+    // Only YOU can add one, by hand in the Firebase console. The app can never do it.
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Banned people can't post, comment, message, send requests or report.
+    function notBanned() {
+      return !exists(/databases/$(database)/documents/banned/$(request.auth.uid));
+    }
+
     // ---------- FRIENDS (Phase 3) ----------
 
     // Are a and b accepted friends? (The friendship doc id is the two user ids
@@ -71,7 +84,10 @@ service cloud.firestore {
         && (pairId == d.requesterId + '_' + d.addresseeId || pairId == d.addresseeId + '_' + d.requesterId)
         && d.status == 'pending'
         && d.createdAt == request.time
-        && exists(/databases/$(database)/documents/users/$(d.addresseeId));
+        && exists(/databases/$(database)/documents/users/$(d.addresseeId))
+        && !exists(/databases/$(database)/documents/users/$(d.addresseeId)/blocked/$(request.auth.uid))
+        && !exists(/databases/$(database)/documents/users/$(request.auth.uid)/blocked/$(d.addresseeId))
+        && notBanned();
     }
 
     match /friendships/{pairId} {
@@ -117,6 +133,17 @@ service cloud.firestore {
         allow update: if signedIn() && request.auth.uid == uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
           && request.resource.data.read == true;
+        allow delete: if signedIn() && request.auth.uid == uid;
+      }
+
+      // users/{uid}/blocked/{blockedId}: only you can see or change YOUR block list.
+      // (The rules for friend requests peek at it to stop blocked people, without showing it to them.)
+      match /blocked/{blockedId} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow create: if signedIn() && request.auth.uid == uid
+          && blockedId != uid
+          && request.resource.data.keys().hasOnly(['createdAt'])
+          && request.resource.data.createdAt == request.time;
         allow delete: if signedIn() && request.auth.uid == uid;
       }
     }
@@ -169,11 +196,11 @@ service cloud.firestore {
     }
 
     match /posts/{postId} {
-      allow read: if signedIn() && canSee(resource.data.authorId);
-      allow create: if signedIn() && validNewPost(request.resource.data);
+      allow read: if signedIn() && (canSee(resource.data.authorId) || isAdmin());
+      allow create: if signedIn() && validNewPost(request.resource.data) && notBanned();
       allow update: if signedIn()
         && (isOwnerEdit() || (canSee(resource.data.authorId) && isCounterUpdate()));
-      allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
+      allow delete: if signedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
 
       // posts/{postId}/likes/{uid}: the doc id is the liker, so you can't like twice
       match /likes/{likerId} {
@@ -191,6 +218,7 @@ service cloud.firestore {
         allow read: if signedIn() && canSeePost(postId);
         allow create: if signedIn()
           && canSeePost(postId)
+          && notBanned()
           && request.resource.data.keys().hasOnly(['authorId', 'text', 'createdAt'])
           && request.resource.data.authorId == request.auth.uid
           && request.resource.data.text is string
@@ -229,6 +257,7 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read: if signedIn() && chatMember(chatId);
         allow create: if signedIn() && chatMember(chatId) && chatFriends(chatId)
+          && notBanned()
           && request.resource.data.keys().hasOnly(['senderId', 'text', 'createdAt'])
           && request.resource.data.senderId == request.auth.uid
           && request.resource.data.text is string
@@ -237,6 +266,48 @@ service cloud.firestore {
           && request.resource.data.createdAt == request.time;
         allow update, delete: if false;
       }
+    }
+
+    // ---------- ADMINS, BANS, REPORTS (Phase 5) ----------
+
+    // admins/{uid}: you may only check your OWN entry. Nobody can write from the app.
+    match /admins/{adminId} {
+      allow read: if signedIn() && request.auth.uid == adminId;
+      allow write: if false;
+    }
+
+    // banned/{uid}: you can see if YOU are banned. Only admins can ban.
+    match /banned/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if signedIn() && isAdmin()
+        && request.resource.data.keys().hasOnly(['by', 'createdAt'])
+        && request.resource.data.by == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // A report: from me, about someone else, with a valid reason.
+    function validReport(d) {
+      return d.keys().hasOnly(['reporterId', 'targetType', 'targetId', 'targetUserId', 'reason', 'details', 'status', 'createdAt'])
+        && d.keys().hasAll(['reporterId', 'targetType', 'targetId', 'targetUserId', 'reason', 'details', 'status', 'createdAt'])
+        && d.reporterId == request.auth.uid
+        && d.targetType in ['user', 'post']
+        && d.targetId is string && d.targetId.size() > 0 && d.targetId.size() <= 100
+        && d.targetUserId is string && d.targetUserId != request.auth.uid
+        && d.reason in ['spam', 'harassment', 'fake', 'inappropriate', 'other']
+        && d.details is string && d.details.size() <= 300
+        && d.status == 'open'
+        && d.createdAt == request.time;
+    }
+
+    // reports/{id}: anyone can file one; ONLY admins can read or handle them.
+    match /reports/{reportId} {
+      allow create: if signedIn() && notBanned() && validReport(request.resource.data);
+      allow read: if signedIn() && isAdmin();
+      allow update: if signedIn() && isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status in ['resolved', 'dismissed'];
+      allow delete: if false;
     }
 
     // Everything else stays locked.
