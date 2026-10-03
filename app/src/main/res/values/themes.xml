@@ -1,0 +1,4 @@
+<resources>
+    <!-- Compose draws everything, so we only need a plain window theme. -->
+    <style name="Theme.Nexus" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
