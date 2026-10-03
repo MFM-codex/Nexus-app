@@ -24,11 +24,20 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.google.firebase.auth.FirebaseUser
+import com.nexus.app.ui.comments.CommentsScreen
+import com.nexus.app.ui.comments.CommentsViewModel
+import com.nexus.app.ui.comments.CommentsViewModelFactory
+import com.nexus.app.ui.home.FeedViewModel
+import com.nexus.app.ui.home.FeedViewModelFactory
+import com.nexus.app.ui.home.HomeScreen
+import com.nexus.app.ui.home.NewPostScreen
 import com.nexus.app.ui.profile.EditProfileScreen
 import com.nexus.app.ui.profile.ProfileScreen
 import com.nexus.app.ui.profile.ProfileViewModel
@@ -52,14 +61,20 @@ fun MainScaffold(user: FirebaseUser, onSignOut: () -> Unit) {
         key = user.uid,
         factory = ProfileViewModelFactory(user.uid, user.email, user.displayName),
     )
+    val feedVm: FeedViewModel = viewModel(
+        key = "feed_${user.uid}",
+        factory = FeedViewModelFactory(user.uid),
+    )
     val nav = rememberNavController()
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
 
+    // Full-screen pages hide the bottom bar
+    val hideBar = route == "editProfile" || route == "newPost" || route?.startsWith("comments") == true
+
     Scaffold(
         bottomBar = {
-            // Hide the bar while editing the profile
-            if (route != "editProfile") {
+            if (!hideBar) {
                 NavigationBar {
                     tabs.forEach { tab ->
                         NavigationBarItem(
@@ -80,7 +95,33 @@ fun MainScaffold(user: FirebaseUser, onSignOut: () -> Unit) {
         },
     ) { padding ->
         NavHost(nav, startDestination = "home", modifier = Modifier.padding(padding)) {
-            composable("home") { Placeholder("Home", "The news feed arrives in Phase 2.") }
+            composable("home") {
+                HomeScreen(
+                    vm = feedVm,
+                    myUid = user.uid,
+                    onNewPost = { nav.navigate("newPost") },
+                    onOpenComments = { postId -> nav.navigate("comments/$postId") },
+                )
+            }
+            composable("newPost") {
+                NewPostScreen(vm = feedVm, onDone = { nav.popBackStack() })
+            }
+            composable(
+                route = "comments/{postId}",
+                arguments = listOf(navArgument("postId") { type = NavType.StringType }),
+            ) { entry ->
+                val postId = entry.arguments?.getString("postId") ?: return@composable
+                val commentsVm: CommentsViewModel = viewModel(
+                    key = "comments_$postId",
+                    factory = CommentsViewModelFactory(postId, user.uid),
+                )
+                CommentsScreen(
+                    vm = commentsVm,
+                    myUid = user.uid,
+                    onBack = { nav.popBackStack() },
+                    onCountChange = { delta -> feedVm.adjustCommentCount(postId, delta) },
+                )
+            }
             composable("friends") { Placeholder("Friends", "Search and friend requests arrive in Phase 3.") }
             composable("chats") { Placeholder("Chats", "Messaging arrives in Phase 4.") }
             composable("alerts") { Placeholder("Alerts", "Notifications arrive in Phase 4.") }

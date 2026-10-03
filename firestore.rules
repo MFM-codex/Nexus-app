@@ -6,6 +6,8 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // ---------- PROFILES (Phase 1) ----------
+
     // A profile must have exactly these fields, with valid values.
     function validProfile(d) {
       return d.keys().hasOnly(['username', 'name', 'bio', 'avatarUrl', 'coverUrl', 'createdAt'])
@@ -40,7 +42,72 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.uid == request.auth.uid;
     }
 
-    // Everything else (posts, comments, likes, friendships, messages, notifications)
-    // is locked until its phase adds the rules. Nothing matches = access denied.
+    // ---------- POSTS (Phase 2) ----------
+
+    // A new post: your own id, valid text/photo, server time, and zero counts.
+    function validNewPost(d) {
+      return d.keys().hasOnly(['authorId', 'text', 'imageUrl', 'createdAt', 'likeCount', 'commentCount'])
+        && d.keys().hasAll(['authorId', 'text', 'imageUrl', 'createdAt', 'likeCount', 'commentCount'])
+        && d.authorId == request.auth.uid
+        && d.text is string && d.text.size() <= 2000
+        && d.imageUrl is string
+        && (d.text.size() > 0 || d.imageUrl.size() > 0)
+        && d.createdAt == request.time
+        && d.likeCount == 0 && d.commentCount == 0;
+    }
+
+    // The owner can change ONLY the text (and the edited time).
+    function isOwnerEdit() {
+      let n = request.resource.data;
+      return resource.data.authorId == request.auth.uid
+        && n.diff(resource.data).affectedKeys().hasOnly(['text', 'editedAt'])
+        && n.text is string && n.text.size() <= 2000
+        && (n.text.size() > 0 || n.imageUrl.size() > 0)
+        && n.editedAt == request.time;
+    }
+
+    // Anyone can bump the like/comment counters, but only by 1 at a time.
+    function isCounterUpdate() {
+      let n = request.resource.data;
+      let o = resource.data;
+      return n.diff(o).affectedKeys().hasOnly(['likeCount', 'commentCount'])
+        && n.likeCount >= 0 && n.commentCount >= 0
+        && math.abs(n.likeCount - o.likeCount) <= 1
+        && math.abs(n.commentCount - o.commentCount) <= 1;
+    }
+
+    match /posts/{postId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && validNewPost(request.resource.data);
+      allow update: if signedIn() && (isOwnerEdit() || isCounterUpdate());
+      allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
+
+      // posts/{postId}/likes/{uid}: the doc id is the liker, so you can't like twice
+      match /likes/{likerId} {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.auth.uid == likerId
+          && request.resource.data.keys().hasOnly(['createdAt'])
+          && request.resource.data.createdAt == request.time;
+        allow update: if false;
+        allow delete: if signedIn() && request.auth.uid == likerId;
+      }
+
+      // posts/{postId}/comments/{commentId}: only the author can delete theirs
+      match /comments/{commentId} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['authorId', 'text', 'createdAt'])
+          && request.resource.data.authorId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 500
+          && request.resource.data.createdAt == request.time
+          && exists(/databases/$(database)/documents/posts/$(postId));
+        allow update: if false;
+        allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
+      }
+    }
+
+    // Everything else (friendships, messages, notifications) stays locked until its phase.
   }
 }
