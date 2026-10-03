@@ -6,6 +6,54 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // ---------- FRIENDS (Phase 3) ----------
+
+    // Are a and b accepted friends? (The friendship doc id is the two user ids
+    // joined with "_", in either order, so we check both.)
+    function areFriends(a, b) {
+      return (exists(/databases/$(database)/documents/friendships/$(a + '_' + b))
+              && get(/databases/$(database)/documents/friendships/$(a + '_' + b)).data.status == 'accepted')
+          || (exists(/databases/$(database)/documents/friendships/$(b + '_' + a))
+              && get(/databases/$(database)/documents/friendships/$(b + '_' + a)).data.status == 'accepted');
+    }
+
+    // You can see your own posts and your friends' posts.
+    function canSee(authorId) {
+      return authorId == request.auth.uid || areFriends(request.auth.uid, authorId);
+    }
+
+    function canSeePost(postId) {
+      return canSee(get(/databases/$(database)/documents/posts/$(postId)).data.authorId);
+    }
+
+    // A new friend request: sent by me, pending, to a real user.
+    function validRequest(d, pairId) {
+      return d.keys().hasOnly(['requesterId', 'addresseeId', 'members', 'status', 'createdAt'])
+        && d.keys().hasAll(['requesterId', 'addresseeId', 'members', 'status', 'createdAt'])
+        && d.requesterId == request.auth.uid
+        && d.addresseeId is string && d.addresseeId != d.requesterId
+        && d.members.size() == 2
+        && d.members.hasAll([d.requesterId, d.addresseeId])
+        && (pairId == d.requesterId + '_' + d.addresseeId || pairId == d.addresseeId + '_' + d.requesterId)
+        && d.status == 'pending'
+        && d.createdAt == request.time
+        && exists(/databases/$(database)/documents/users/$(d.addresseeId));
+    }
+
+    match /friendships/{pairId} {
+      // only the two people involved can see it
+      allow read: if signedIn() && request.auth.uid in resource.data.members;
+      allow create: if signedIn() && validRequest(request.resource.data, pairId);
+      // only the person who RECEIVED the request can accept it
+      allow update: if signedIn()
+        && resource.data.addresseeId == request.auth.uid
+        && resource.data.status == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status == 'accepted';
+      // either person can delete (decline, cancel request, unfriend)
+      allow delete: if signedIn() && request.auth.uid in resource.data.members;
+    }
+
     // ---------- PROFILES (Phase 1) ----------
 
     // A profile must have exactly these fields, with valid values.
@@ -19,7 +67,7 @@ service cloud.firestore {
         && d.createdAt is timestamp;
     }
 
-    // users/{uid}: anyone signed in can read; ONLY the owner can create or edit.
+    // users/{uid}: anyone signed in can read (needed for search); ONLY the owner can create or edit.
     match /users/{uid} {
       allow read: if signedIn();
       allow create: if signedIn() && request.auth.uid == uid && validProfile(request.resource.data);
@@ -42,7 +90,7 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.uid == request.auth.uid;
     }
 
-    // ---------- POSTS (Phase 2) ----------
+    // ---------- POSTS (Phase 2, now friends-only) ----------
 
     // A new post: your own id, valid text/photo, server time, and zero counts.
     function validNewPost(d) {
@@ -66,7 +114,7 @@ service cloud.firestore {
         && n.editedAt == request.time;
     }
 
-    // Anyone can bump the like/comment counters, but only by 1 at a time.
+    // People who can see a post can bump its like/comment counters, but only by 1 at a time.
     function isCounterUpdate() {
       let n = request.resource.data;
       let o = resource.data;
@@ -77,15 +125,17 @@ service cloud.firestore {
     }
 
     match /posts/{postId} {
-      allow read: if signedIn();
+      allow read: if signedIn() && canSee(resource.data.authorId);
       allow create: if signedIn() && validNewPost(request.resource.data);
-      allow update: if signedIn() && (isOwnerEdit() || isCounterUpdate());
+      allow update: if signedIn()
+        && (isOwnerEdit() || (canSee(resource.data.authorId) && isCounterUpdate()));
       allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
 
       // posts/{postId}/likes/{uid}: the doc id is the liker, so you can't like twice
       match /likes/{likerId} {
-        allow read: if signedIn();
+        allow read: if signedIn() && canSeePost(postId);
         allow create: if signedIn() && request.auth.uid == likerId
+          && canSeePost(postId)
           && request.resource.data.keys().hasOnly(['createdAt'])
           && request.resource.data.createdAt == request.time;
         allow update: if false;
@@ -94,20 +144,20 @@ service cloud.firestore {
 
       // posts/{postId}/comments/{commentId}: only the author can delete theirs
       match /comments/{commentId} {
-        allow read: if signedIn();
+        allow read: if signedIn() && canSeePost(postId);
         allow create: if signedIn()
+          && canSeePost(postId)
           && request.resource.data.keys().hasOnly(['authorId', 'text', 'createdAt'])
           && request.resource.data.authorId == request.auth.uid
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 500
-          && request.resource.data.createdAt == request.time
-          && exists(/databases/$(database)/documents/posts/$(postId));
+          && request.resource.data.createdAt == request.time;
         allow update: if false;
         allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
       }
     }
 
-    // Everything else (friendships, messages, notifications) stays locked until its phase.
+    // Everything else (messages, notifications) stays locked until its phase.
   }
 }

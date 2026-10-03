@@ -1,4 +1,4 @@
-# Nexus (Phase 2)
+# Nexus (Phase 3)
 
 Kotlin + Jetpack Compose + Firebase Auth/Firestore + Cloudinary (images).
 
@@ -20,6 +20,13 @@ usernames/{username}  uid                                                      [
 posts/{postId}        authorId -> users, text, imageUrl, createdAt, likeCount, commentCount  [Phase 2 done]
   comments/{id}       authorId -> users, text, createdAt                       [Phase 2 done]
   likes/{uid}         createdAt  (doc id = liker's uid, so no double likes)    [Phase 2 done]
-friendships/{id}      requesterId, addresseeId -> users, status, createdAt     [Phase 3]
+friendships/{a_b}     requesterId, addresseeId -> users, members[a,b], status, createdAt  [Phase 3 done]
+                      (id = the two user ids joined with _; status pending/accepted;
+                       decline / cancel / unfriend = delete the document)
 chats/{id}/messages   senderId -> users, text, createdAt, readAt               [Phase 4]
 notifications/{id}    userId, actorId -> users, type, postId, read, createdAt  [Phase 4]
+
+## One-time Firestore index (needed for the friends-only feed, Phase 3)
+Firestore > Indexes > Composite > Add index
+  Collection ID: posts | Fields: authorId (Ascending), createdAt (Descending) | Query scope: Collection
+Wait until its status says Enabled.

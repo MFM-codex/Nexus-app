@@ -1,11 +1,15 @@
 package com.nexus.app.data
 
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
@@ -46,21 +50,31 @@ class PostRepository {
     // Remember authors we already loaded so we don't fetch them again.
     private val authorCache = ConcurrentHashMap<String, Profile>()
 
-    // Newest posts first. Pass the previous page's `last` to get the next page.
-    suspend fun loadPage(after: DocumentSnapshot?): PostPage {
-        var query = posts.orderBy("createdAt", Query.Direction.DESCENDING).limit(PAGE_SIZE.toLong())
-        if (after != null) query = query.startAfter(after)
-        val snap = query.get().await()
-        return PostPage(
-            posts = snap.documents.map { it.toPost() },
-            last = snap.documents.lastOrNull(),
-            end = snap.size() < PAGE_SIZE,
+    // Newest posts first, from the given authors (you + your friends).
+    // `before` = time of the last post already loaded (null for the first page).
+    suspend fun loadPage(authorIds: List<String>, before: Timestamp?): PostPage = coroutineScope {
+        // One query per author: Firestore's security rules need the author fixed in each query.
+        val jobs = authorIds.map { author ->
+            async {
+                var query = posts.whereEqualTo("authorId", author)
+                    .orderBy("createdAt", Query.Direction.DESCENDING)
+                if (before != null) query = query.startAfter(before)
+                query.limit((PAGE_SIZE + 1).toLong()).get().await().documents
+            }
+        }
+        val merged = jobs.awaitAll().flatten()
+            .sortedByDescending { it.getTimestamp("createdAt", ESTIMATE) }
+        val page = merged.take(PAGE_SIZE)
+        PostPage(
+            posts = page.map { it.toPost() },
+            last = page.lastOrNull()?.getTimestamp("createdAt", ESTIMATE),
+            end = merged.size <= PAGE_SIZE,
         )
     }
 
     // Look up the profiles of the given users (name, avatar...), 10 at a time.
     suspend fun authors(uids: Set<String>): Map<String, Profile> {
-        val missing = uids.filter { it.isNotEmpty() && !authorCache.containsKey(it) }
+        val missing = uids.filter { it.isNotEmpty() && it !in authorCache }
         missing.chunked(10).forEach { chunk ->
             val snap = users.whereIn(FieldPath.documentId(), chunk).get().await()
             snap.documents.forEach { d ->

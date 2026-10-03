@@ -5,8 +5,9 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.Timestamp
 import com.nexus.app.data.CloudinaryUploader
+import com.nexus.app.data.FriendRepository
 import com.nexus.app.data.PostRepository
 import com.nexus.app.data.PostUi
 import kotlinx.coroutines.async
@@ -29,6 +30,7 @@ data class FeedState(
 
 class FeedViewModel(private val uid: String) : ViewModel() {
     private val repo = PostRepository()
+    private val friendRepo = FriendRepository()
 
     private val _state = MutableStateFlow(FeedState())
     val state: StateFlow<FeedState> = _state
@@ -37,7 +39,8 @@ class FeedViewModel(private val uid: String) : ViewModel() {
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy
 
-    private var cursor: DocumentSnapshot? = null // where the next page starts
+    private var cursor: Timestamp? = null // time of the last post loaded
+    private var authorIds: List<String> = listOf(uid) // whose posts we show: me + my friends
     private var loading = false
 
     init {
@@ -51,7 +54,8 @@ class FeedViewModel(private val uid: String) : ViewModel() {
         viewModelScope.launch {
             _state.update { it.copy(refreshing = true, error = null) }
             try {
-                val page = repo.loadPage(null)
+                authorIds = listOf(uid) + friendRepo.friendIds(uid)
+                val page = repo.loadPage(authorIds, null)
                 cursor = page.last
                 val items = toUi(page.posts)
                 _state.update {
@@ -73,7 +77,7 @@ class FeedViewModel(private val uid: String) : ViewModel() {
         viewModelScope.launch {
             _state.update { it.copy(loadingMore = true) }
             try {
-                val page = repo.loadPage(cursor)
+                val page = repo.loadPage(authorIds, cursor)
                 cursor = page.last ?: cursor
                 val more = toUi(page.posts)
                 _state.update {

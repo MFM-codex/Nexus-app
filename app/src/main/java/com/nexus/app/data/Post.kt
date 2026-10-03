@@ -1,6 +1,6 @@
 package com.nexus.app.data
 
-import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.Timestamp
 import java.util.Date
 
 // A post. Stored in Firestore at posts/{postId}.
@@ -28,5 +28,5 @@ data class PostUi(val post: Post, val author: Profile?, val liked: Boolean)
 
 data class CommentUi(val comment: Comment, val author: Profile?)
 
-// One page of posts, plus a bookmark (last) so we know where the next page starts.
-data class PostPage(val posts: List<Post>, val last: DocumentSnapshot?, val end: Boolean)
+// One page of posts, plus a bookmark (the time of the last post) for the next page.
+data class PostPage(val posts: List<Post>, val last: Timestamp?, val end: Boolean)

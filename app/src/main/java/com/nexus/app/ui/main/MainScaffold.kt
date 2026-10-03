@@ -34,6 +34,10 @@ import com.google.firebase.auth.FirebaseUser
 import com.nexus.app.ui.comments.CommentsScreen
 import com.nexus.app.ui.comments.CommentsViewModel
 import com.nexus.app.ui.comments.CommentsViewModelFactory
+import com.nexus.app.ui.friends.FriendsScreen
+import com.nexus.app.ui.friends.FriendsViewModel
+import com.nexus.app.ui.friends.FriendsViewModelFactory
+import com.nexus.app.ui.friends.UserProfileScreen
 import com.nexus.app.ui.home.FeedViewModel
 import com.nexus.app.ui.home.FeedViewModelFactory
 import com.nexus.app.ui.home.HomeScreen
@@ -65,12 +69,17 @@ fun MainScaffold(user: FirebaseUser, onSignOut: () -> Unit) {
         key = "feed_${user.uid}",
         factory = FeedViewModelFactory(user.uid),
     )
+    val friendsVm: FriendsViewModel = viewModel(
+        key = "friends_${user.uid}",
+        factory = FriendsViewModelFactory(user.uid),
+    )
     val nav = rememberNavController()
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
 
     // Full-screen pages hide the bottom bar
-    val hideBar = route == "editProfile" || route == "newPost" || route?.startsWith("comments") == true
+    val hideBar = route == "editProfile" || route == "newPost" || route?.startsWith("comments") == true ||
+        route?.startsWith("user/") == true
 
     Scaffold(
         bottomBar = {
@@ -122,7 +131,20 @@ fun MainScaffold(user: FirebaseUser, onSignOut: () -> Unit) {
                     onCountChange = { delta -> feedVm.adjustCommentCount(postId, delta) },
                 )
             }
-            composable("friends") { Placeholder("Friends", "Search and friend requests arrive in Phase 3.") }
+            composable("friends") {
+                FriendsScreen(
+                    vm = friendsVm,
+                    myUid = user.uid,
+                    onOpenUser = { id -> nav.navigate("user/$id") },
+                )
+            }
+            composable(
+                route = "user/{uid}",
+                arguments = listOf(navArgument("uid") { type = NavType.StringType }),
+            ) { entry ->
+                val otherUid = entry.arguments?.getString("uid") ?: return@composable
+                UserProfileScreen(vm = friendsVm, otherUid = otherUid, onBack = { nav.popBackStack() })
+            }
             composable("chats") { Placeholder("Chats", "Messaging arrives in Phase 4.") }
             composable("alerts") { Placeholder("Alerts", "Notifications arrive in Phase 4.") }
             composable("profile") {
