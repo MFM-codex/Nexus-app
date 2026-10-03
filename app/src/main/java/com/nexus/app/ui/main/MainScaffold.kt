@@ -10,6 +10,8 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -17,6 +19,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +34,15 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.google.firebase.auth.FirebaseUser
+import com.nexus.app.ui.alerts.AlertsScreen
+import com.nexus.app.ui.alerts.NotificationsViewModel
+import com.nexus.app.ui.alerts.NotificationsViewModelFactory
+import com.nexus.app.ui.chat.ChatScreen
+import com.nexus.app.ui.chat.ChatViewModel
+import com.nexus.app.ui.chat.ChatViewModelFactory
+import com.nexus.app.ui.chat.ChatsScreen
+import com.nexus.app.ui.chat.ChatsViewModel
+import com.nexus.app.ui.chat.ChatsViewModelFactory
 import com.nexus.app.ui.comments.CommentsScreen
 import com.nexus.app.ui.comments.CommentsViewModel
 import com.nexus.app.ui.comments.CommentsViewModelFactory
@@ -73,13 +85,24 @@ fun MainScaffold(user: FirebaseUser, onSignOut: () -> Unit) {
         key = "friends_${user.uid}",
         factory = FriendsViewModelFactory(user.uid),
     )
+    val chatsVm: ChatsViewModel = viewModel(
+        key = "chats_${user.uid}",
+        factory = ChatsViewModelFactory(user.uid),
+    )
+    val notifVm: NotificationsViewModel = viewModel(
+        key = "notifs_${user.uid}",
+        factory = NotificationsViewModelFactory(user.uid),
+    )
+    val unreadChats by chatsVm.totalUnread.collectAsState()
+    val unreadAlerts by notifVm.unreadCount.collectAsState()
     val nav = rememberNavController()
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
 
     // Full-screen pages hide the bottom bar
     val hideBar = route == "editProfile" || route == "newPost" || route?.startsWith("comments") == true ||
-        route?.startsWith("user/") == true
+        route?.startsWith("user/") == true ||
+        route?.startsWith("chat/") == true
 
     Scaffold(
         bottomBar = {
@@ -95,7 +118,18 @@ fun MainScaffold(user: FirebaseUser, onSignOut: () -> Unit) {
                                     restoreState = true
                                 }
                             },
-                            icon = { Icon(tab.icon, contentDescription = tab.label) },
+                            icon = {
+                                val count = when (tab.route) {
+                                    "chats" -> unreadChats
+                                    "alerts" -> unreadAlerts
+                                    else -> 0
+                                }
+                                BadgedBox(badge = {
+                                    if (count > 0) Badge { Text(if (count > 9) "9+" else "$count") }
+                                }) {
+                                    Icon(tab.icon, contentDescription = tab.label)
+                                }
+                            },
                             label = { Text(tab.label) },
                         )
                     }
@@ -143,10 +177,43 @@ fun MainScaffold(user: FirebaseUser, onSignOut: () -> Unit) {
                 arguments = listOf(navArgument("uid") { type = NavType.StringType }),
             ) { entry ->
                 val otherUid = entry.arguments?.getString("uid") ?: return@composable
-                UserProfileScreen(vm = friendsVm, otherUid = otherUid, onBack = { nav.popBackStack() })
+                UserProfileScreen(
+                    vm = friendsVm,
+                    otherUid = otherUid,
+                    onBack = { nav.popBackStack() },
+                    onMessage = { nav.navigate("chat/$otherUid") },
+                )
             }
-            composable("chats") { Placeholder("Chats", "Messaging arrives in Phase 4.") }
-            composable("alerts") { Placeholder("Alerts", "Notifications arrive in Phase 4.") }
+            composable("chats") {
+                ChatsScreen(
+                    vm = chatsVm,
+                    myUid = user.uid,
+                    onOpenChat = { otherId -> nav.navigate("chat/$otherId") },
+                )
+            }
+            composable("alerts") {
+                AlertsScreen(
+                    vm = notifVm,
+                    onOpenUser = { id -> nav.navigate("user/$id") },
+                    onOpenPost = { postId -> nav.navigate("comments/$postId") },
+                )
+            }
+            composable(
+                route = "chat/{uid}",
+                arguments = listOf(navArgument("uid") { type = NavType.StringType }),
+            ) { entry ->
+                val otherUid = entry.arguments?.getString("uid") ?: return@composable
+                val chatVm: ChatViewModel = viewModel(
+                    key = "chat_${user.uid}_$otherUid",
+                    factory = ChatViewModelFactory(user.uid, otherUid),
+                )
+                ChatScreen(
+                    vm = chatVm,
+                    myUid = user.uid,
+                    onBack = { nav.popBackStack() },
+                    onOpenProfile = { nav.navigate("user/$otherUid") },
+                )
+            }
             composable("profile") {
                 ProfileScreen(
                     vm = profileVm,

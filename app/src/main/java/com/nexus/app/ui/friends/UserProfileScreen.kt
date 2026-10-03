@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -25,11 +26,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nexus.app.data.Profile
+import com.nexus.app.data.Relation
 import com.nexus.app.ui.profile.ProfileHeader
 
 // Another person's profile, with the right friend button.
 @Composable
-fun UserProfileScreen(vm: FriendsViewModel, otherUid: String, onBack: () -> Unit) {
+fun UserProfileScreen(vm: FriendsViewModel, otherUid: String, onBack: () -> Unit, onMessage: () -> Unit) {
     val state by vm.state.collectAsState() // re-draw when the friendship changes
     val loaded by produceState(initialValue = false to (null as Profile?), otherUid) {
         value = true to vm.profileOf(otherUid)
@@ -59,6 +61,10 @@ fun UserProfileScreen(vm: FriendsViewModel, otherUid: String, onBack: () -> Unit
                     Text(profile.bio)
                 }
                 Spacer(Modifier.height(16.dp))
+                if (vm.relationWith(otherUid) == Relation.FRIEND) {
+                    Button(onClick = onMessage) { Text("Message") }
+                    Spacer(Modifier.height(8.dp))
+                }
                 // state.friendships is read above, so this updates the moment a request is sent or accepted
                 RelationActions(
                     relation = vm.relationWith(otherUid),

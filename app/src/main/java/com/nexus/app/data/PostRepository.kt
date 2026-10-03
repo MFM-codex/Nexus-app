@@ -74,7 +74,7 @@ class PostRepository {
 
     // Look up the profiles of the given users (name, avatar...), 10 at a time.
     suspend fun authors(uids: Set<String>): Map<String, Profile> {
-        val missing = uids.filter { it.isNotEmpty() && it !in authorCache }
+        val missing = uids.filter { it.isNotEmpty() && !authorCache.containsKey(it) }
         missing.chunked(10).forEach { chunk ->
             val snap = users.whereIn(FieldPath.documentId(), chunk).get().await()
             snap.documents.forEach { d ->
@@ -90,6 +90,10 @@ class PostRepository {
         }
         return uids.mapNotNull { id -> authorCache[id]?.let { id to it } }.toMap()
     }
+
+    // Who wrote this post? (used to notify them about comments)
+    suspend fun authorOf(postId: String): String? =
+        posts.document(postId).get().await().getString("authorId")
 
     suspend fun createPost(uid: String, text: String, imageUrl: String) {
         posts.add(

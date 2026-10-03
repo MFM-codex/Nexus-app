@@ -26,6 +26,40 @@ service cloud.firestore {
       return canSee(get(/databases/$(database)/documents/posts/$(postId)).data.authorId);
     }
 
+    // ---------- CHAT + NOTIFICATIONS helpers (Phase 4) ----------
+
+    // A chat id is the two user ids joined with "_", so the id itself tells us who is in it.
+    function chatMember(chatId) {
+      return request.auth.uid in chatId.split('_');
+    }
+
+    function chatFriends(chatId) {
+      return areFriends(chatId.split('_')[0], chatId.split('_')[1]);
+    }
+
+    // A new notification: sent BY me, about a real like/comment on the recipient's post,
+    // or about a real friend request between us.
+    function validNotif(d, recipient) {
+      return d.keys().hasOnly(['actorId', 'type', 'postId', 'read', 'createdAt'])
+        && d.keys().hasAll(['actorId', 'type', 'postId', 'read', 'createdAt'])
+        && d.actorId == request.auth.uid
+        && recipient != request.auth.uid
+        && d.read == false
+        && d.createdAt == request.time
+        && d.postId is string
+        && (
+          ((d.type == 'like' || d.type == 'comment')
+            && exists(/databases/$(database)/documents/posts/$(d.postId))
+            && get(/databases/$(database)/documents/posts/$(d.postId)).data.authorId == recipient
+            && canSee(recipient))
+          ||
+          ((d.type == 'friend_request' || d.type == 'friend_accept')
+            && d.postId == ''
+            && (exists(/databases/$(database)/documents/friendships/$(request.auth.uid + '_' + recipient))
+                || exists(/databases/$(database)/documents/friendships/$(recipient + '_' + request.auth.uid))))
+        );
+    }
+
     // A new friend request: sent by me, pending, to a real user.
     function validRequest(d, pairId) {
       return d.keys().hasOnly(['requesterId', 'addresseeId', 'members', 'status', 'createdAt'])
@@ -75,6 +109,16 @@ service cloud.firestore {
         && validProfile(request.resource.data)
         && request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if false;
+
+      // users/{uid}/notifications/{nid}: only you can read them; others can only ADD ones about you.
+      match /notifications/{nid} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow create: if signedIn() && validNotif(request.resource.data, uid);
+        allow update: if signedIn() && request.auth.uid == uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+          && request.resource.data.read == true;
+        allow delete: if signedIn() && request.auth.uid == uid;
+      }
     }
 
     // usernames/{username}: makes usernames unique. You can only claim a free name,
@@ -158,6 +202,43 @@ service cloud.firestore {
       }
     }
 
-    // Everything else (messages, notifications) stays locked until its phase.
+    // ---------- CHATS (Phase 4) ----------
+
+    // chats/{chatId}: a private conversation between two FRIENDS
+    match /chats/{chatId} {
+      allow read: if signedIn() && chatMember(chatId);
+
+      allow create: if signedIn() && chatMember(chatId) && chatFriends(chatId)
+        && request.resource.data.keys().hasOnly(['members', 'lastMessage', 'lastMessageAt', 'lastSenderId', 'unread', 'lastRead'])
+        && request.resource.data.keys().hasAll(['members', 'lastMessage', 'lastMessageAt', 'lastSenderId', 'unread', 'lastRead'])
+        && request.resource.data.members.size() == 2
+        && request.resource.data.members.hasAll(chatId.split('_'))
+        && request.resource.data.lastMessage == ''
+        && request.resource.data.lastSenderId == ''
+        && request.resource.data.lastMessageAt == request.time;
+
+      // the two people can update the summary and their unread/read markers, never the members
+      allow update: if signedIn() && chatMember(chatId)
+        && request.resource.data.members == resource.data.members
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderId', 'unread', 'lastRead']);
+
+      allow delete: if false;
+
+      // messages can be sent only as yourself, and only while you are still friends
+      match /messages/{messageId} {
+        allow read: if signedIn() && chatMember(chatId);
+        allow create: if signedIn() && chatMember(chatId) && chatFriends(chatId)
+          && request.resource.data.keys().hasOnly(['senderId', 'text', 'createdAt'])
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 1000
+          && request.resource.data.createdAt == request.time;
+        allow update, delete: if false;
+      }
+    }
+
+    // Everything else stays locked.
   }
 }

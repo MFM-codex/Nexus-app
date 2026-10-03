@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.nexus.app.data.CommentUi
+import com.nexus.app.data.NotificationRepository
 import com.nexus.app.data.PostRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -15,6 +16,7 @@ import kotlinx.coroutines.launch
 
 class CommentsViewModel(private val postId: String, private val uid: String) : ViewModel() {
     private val repo = PostRepository()
+    private val notifRepo = NotificationRepository()
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
@@ -41,6 +43,15 @@ class CommentsViewModel(private val postId: String, private val uid: String) : V
             _error.value = null
             val ok = try {
                 repo.addComment(postId, uid, text)
+                // Tell the post's author (failures here don't matter)
+                try {
+                    val authorId = repo.authorOf(postId)
+                    if (authorId != null && authorId != uid) {
+                        notifRepo.create(authorId, uid, "comment", postId)
+                    }
+                } catch (e: Exception) {
+                    // ignore
+                }
                 true
             } catch (e: Exception) {
                 _error.value = e.message ?: "Could not send comment."

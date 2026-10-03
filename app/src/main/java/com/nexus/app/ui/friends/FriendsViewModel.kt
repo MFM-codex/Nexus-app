@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.nexus.app.data.FriendRepository
 import com.nexus.app.data.Friendship
+import com.nexus.app.data.NotificationRepository
 import com.nexus.app.data.Profile
 import com.nexus.app.data.Relation
 import kotlinx.coroutines.CancellationException
@@ -27,6 +28,7 @@ data class FriendsState(
 
 class FriendsViewModel(private val me: String) : ViewModel() {
     private val repo = FriendRepository()
+    private val notifRepo = NotificationRepository()
 
     private val _state = MutableStateFlow(FriendsState())
     val state: StateFlow<FriendsState> = _state
@@ -90,8 +92,23 @@ class FriendsViewModel(private val me: String) : ViewModel() {
         }
     }
 
-    fun sendRequest(other: String) = launchAction { repo.sendRequest(me, other) }
-    fun accept(other: String) = launchAction { repo.accept(me, other) }
+    fun sendRequest(other: String) = launchAction {
+        repo.sendRequest(me, other)
+        try {
+            notifRepo.create(other, me, "friend_request")
+        } catch (e: Exception) {
+            // the notification is a bonus; ignore failures
+        }
+    }
+
+    fun accept(other: String) = launchAction {
+        repo.accept(me, other)
+        try {
+            notifRepo.create(other, me, "friend_accept")
+        } catch (e: Exception) {
+            // ignore
+        }
+    }
 
     // Used for decline, cancel request and unfriend.
     fun remove(other: String) = launchAction { repo.remove(me, other) }

@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.Timestamp
 import com.nexus.app.data.CloudinaryUploader
 import com.nexus.app.data.FriendRepository
+import com.nexus.app.data.NotificationRepository
 import com.nexus.app.data.PostRepository
 import com.nexus.app.data.PostUi
 import kotlinx.coroutines.async
@@ -31,6 +32,7 @@ data class FeedState(
 class FeedViewModel(private val uid: String) : ViewModel() {
     private val repo = PostRepository()
     private val friendRepo = FriendRepository()
+    private val notifRepo = NotificationRepository()
 
     private val _state = MutableStateFlow(FeedState())
     val state: StateFlow<FeedState> = _state
@@ -113,6 +115,14 @@ class FeedViewModel(private val uid: String) : ViewModel() {
         viewModelScope.launch {
             try {
                 repo.setLike(postId, uid, nowLiked)
+                // Tell the author (once per person per post; failures here don't matter)
+                if (nowLiked && current.post.authorId != uid) {
+                    try {
+                        notifRepo.create(current.post.authorId, uid, "like", postId, id = "like_${postId}_$uid")
+                    } catch (e: Exception) {
+                        // already sent before, or not allowed: ignore
+                    }
+                }
             } catch (e: Exception) {
                 setLocalLike(postId, !nowLiked)
                 _state.update { it.copy(error = e.message ?: "Could not update like.") }
