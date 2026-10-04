@@ -85,6 +85,31 @@ class ProfileRepository {
         throw IllegalStateException("Could not create a username. Try again.")
     }
 
+    // Create the profile with the name and username the person chose.
+    suspend fun createProfile(uid: String, name: String, username: String) {
+        db.runTransaction { tx ->
+            val usernameRef = usernames.document(username)
+            if (tx.get(usernameRef).exists()) throw UsernameTakenException()
+            tx.set(usernameRef, mapOf("uid" to uid))
+            tx.set(
+                users.document(uid),
+                mapOf(
+                    "username" to username,
+                    "name" to name,
+                    "bio" to "",
+                    "avatarUrl" to "",
+                    "coverUrl" to "",
+                    "createdAt" to FieldValue.serverTimestamp(),
+                )
+            )
+            true
+        }.await()
+    }
+
+    // Is this username still free?
+    suspend fun isUsernameFree(username: String): Boolean =
+        !usernames.document(username).get().await().exists()
+
     // Save edits. If the username changed, claim the new one and release the old one.
     suspend fun saveProfile(
         uid: String,

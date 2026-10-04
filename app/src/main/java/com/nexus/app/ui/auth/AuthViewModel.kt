@@ -17,6 +17,9 @@ import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.UserProfileChangeRequest
+import com.nexus.app.data.PendingSignup
+import com.nexus.app.data.ProfileRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,7 +40,11 @@ class AuthViewModel : ViewModel() {
     val error: StateFlow<String?> = _error
 
     // Firebase tells us whenever someone signs in or out.
-    private val listener = FirebaseAuth.AuthStateListener { _user.value = it.currentUser }
+    // While we create the account AND the profile, don't tell the screen yet,
+    // so you don't see a flash of the "finish setting up" page.
+    private var signingUp = false
+
+    private val listener = FirebaseAuth.AuthStateListener { if (!signingUp) _user.value = it.currentUser }
 
     init {
         auth.addAuthStateListener(listener)
@@ -51,8 +58,29 @@ class AuthViewModel : ViewModel() {
         auth.signInWithEmailAndPassword(email.trim(), password).await()
     }
 
-    fun signUp(email: String, password: String) = launchAuth {
-        auth.createUserWithEmailAndPassword(email.trim(), password).await()
+    fun signUp(firstName: String, lastName: String, username: String, email: String, password: String) = launchAuth {
+        val cleanUsername = username.trim().lowercase()
+        val fullName = "${firstName.trim()} ${lastName.trim()}".trim()
+        signingUp = true
+        try {
+            val created = auth.createUserWithEmailAndPassword(email.trim(), password).await()
+            val newUser = created.user ?: throw IllegalStateException("Could not create the account.")
+            PendingSignup.username = cleanUsername
+            try {
+                newUser.updateProfile(UserProfileChangeRequest.Builder().setDisplayName(fullName).build()).await()
+            } catch (e: Exception) {
+                // not important
+            }
+            try {
+                ProfileRepository().createProfile(newUser.uid, fullName, cleanUsername)
+            } catch (e: Exception) {
+                // For example the username was taken. The app will show the
+                // "finish setting up your profile" page so they can pick another one.
+            }
+        } finally {
+            signingUp = false
+            _user.value = auth.currentUser
+        }
     }
 
     fun signInWithGoogle(activity: Activity) = launchAuth {

@@ -11,7 +11,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Badge
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -29,17 +33,21 @@ import com.nexus.app.ui.components.timeAgo
 
 // The Chats tab: your conversations, newest first.
 @Composable
-fun ChatsScreen(vm: ChatsViewModel, myUid: String, onOpenChat: (String) -> Unit) {
+fun ChatsScreen(vm: ChatsViewModel, myUid: String, onBack: () -> Unit, onOpenChat: (String) -> Unit) {
     val loadedRows by vm.rows.collectAsState()
     val rows = loadedRows.orEmpty()
 
     Column(Modifier.fillMaxSize()) {
-        Text(
-            "Chats",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(16.dp),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(4.dp)) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
+            Text(
+                "Chats",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+            )
+        }
         HorizontalDivider()
         LazyColumn(Modifier.fillMaxSize()) {
             if (loadedRows == null) {
