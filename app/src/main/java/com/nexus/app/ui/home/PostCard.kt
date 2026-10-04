@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AlertDialog
@@ -53,6 +55,7 @@ fun PostCard(
     onEdit: (String) -> Unit,
     onDelete: () -> Unit,
     onReport: (String, String) -> Unit,
+    onSave: () -> Unit,
 ) {
     val post = item.post
     val name = item.author?.name ?: "Unknown user"
@@ -117,7 +120,11 @@ fun PostCard(
         }
 
         // Like and comment buttons with counts
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             TextButton(
                 onClick = onLike,
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
@@ -137,6 +144,14 @@ fun PostCard(
                 Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = "Comments")
                 Spacer(Modifier.width(6.dp))
                 Text("${post.commentCount}")
+            }
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = onSave) {
+                Icon(
+                    imageVector = if (item.saved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                    contentDescription = if (item.saved) "Remove from saved" else "Save post",
+                    tint = if (item.saved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

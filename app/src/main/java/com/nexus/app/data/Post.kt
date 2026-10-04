@@ -24,7 +24,7 @@ data class Comment(
 )
 
 // What the screen needs to draw one post: the post + who wrote it + did I like it.
-data class PostUi(val post: Post, val author: Profile?, val liked: Boolean)
+data class PostUi(val post: Post, val author: Profile?, val liked: Boolean, val saved: Boolean = false)
 
 data class CommentUi(val comment: Comment, val author: Profile?)
 

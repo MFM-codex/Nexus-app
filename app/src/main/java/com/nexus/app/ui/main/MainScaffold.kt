@@ -38,6 +38,13 @@ import com.nexus.app.ui.friends.FriendsViewModel
 import com.nexus.app.ui.friends.FriendsViewModelFactory
 import com.nexus.app.ui.friends.UserProfileScreen
 import com.nexus.app.ui.home.FeedViewModel
+import com.nexus.app.ui.menu.BlockedScreen
+import com.nexus.app.ui.menu.HelpScreen
+import com.nexus.app.ui.menu.MenuScreen
+import com.nexus.app.ui.menu.SettingsScreen
+import com.nexus.app.ui.saved.SavedScreen
+import com.nexus.app.ui.saved.SavedViewModel
+import com.nexus.app.ui.saved.SavedViewModelFactory
 import com.nexus.app.ui.home.FeedViewModelFactory
 import com.nexus.app.ui.home.HomeScreen
 import com.nexus.app.ui.home.NewPostScreen
@@ -258,7 +265,46 @@ private fun MainContent(
                     onSignOut = onSignOut,
                     isAdmin = isAdmin,
                     onOpenAdmin = { nav.navigate("admin") },
+                    onBack = { nav.popBackStack() },
                 )
+            }
+            composable("menu") {
+                MenuScreen(
+                    profile = myProfile,
+                    isAdmin = isAdmin,
+                    unreadChats = unreadChats,
+                    unreadAlerts = unreadAlerts,
+                    onOpenProfile = { nav.navigate("profile") },
+                    onFriends = { goTab("friends") },
+                    onReels = { goTab("reels") },
+                    onChats = { nav.navigate("chats") { launchSingleTop = true } },
+                    onAlerts = { goTab("alerts") },
+                    onSaved = { nav.navigate("saved") },
+                    onAdmin = { nav.navigate("admin") },
+                    onSettings = { nav.navigate("settings") },
+                    onHelp = { nav.navigate("help") },
+                    onLogout = onSignOut,
+                )
+            }
+            composable("saved") {
+                val savedVm: SavedViewModel = viewModel(
+                    key = "saved_${user.uid}",
+                    factory = SavedViewModelFactory(user.uid),
+                )
+                SavedScreen(vm = savedVm, onBack = { nav.popBackStack() })
+            }
+            composable("settings") {
+                SettingsScreen(
+                    onBack = { nav.popBackStack() },
+                    onEditProfile = { nav.navigate("editProfile") },
+                    onBlocked = { nav.navigate("blocked") },
+                )
+            }
+            composable("blocked") {
+                BlockedScreen(vm = friendsVm, onBack = { nav.popBackStack() })
+            }
+            composable("help") {
+                HelpScreen(onBack = { nav.popBackStack() })
             }
             composable("admin") {
                 AdminScreen(

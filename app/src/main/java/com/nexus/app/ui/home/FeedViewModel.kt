@@ -12,6 +12,7 @@ import com.nexus.app.data.NotificationRepository
 import com.nexus.app.data.PostRepository
 import com.nexus.app.data.PostUi
 import com.nexus.app.data.ReportRepository
+import com.nexus.app.data.SavedRepository
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -36,6 +37,7 @@ class FeedViewModel(private val uid: String) : ViewModel() {
     private val friendRepo = FriendRepository()
     private val notifRepo = NotificationRepository()
     private val reportRepo = ReportRepository()
+    private val savedRepo = SavedRepository()
 
     private val _state = MutableStateFlow(FeedState())
     val state: StateFlow<FeedState> = _state
@@ -105,9 +107,19 @@ class FeedViewModel(private val uid: String) : ViewModel() {
     private suspend fun toUi(posts: List<com.nexus.app.data.Post>): List<PostUi> = coroutineScope {
         val authorsJob = async { repo.authors(posts.map { it.authorId }.toSet()) }
         val likedJobs = posts.map { post -> async { repo.isLiked(post.id, uid) } }
+        val savedJobs = posts.map { post ->
+            async {
+                try {
+                    savedRepo.isSaved(uid, post.id)
+                } catch (e: Exception) {
+                    false
+                }
+            }
+        }
         val authors = authorsJob.await()
         val liked = likedJobs.awaitAll()
-        posts.mapIndexed { i, post -> PostUi(post, authors[post.authorId], liked[i]) }
+        val saved = savedJobs.awaitAll()
+        posts.mapIndexed { i, post -> PostUi(post, authors[post.authorId], liked[i], saved[i]) }
     }
 
     // Like/unlike. The heart changes instantly; if saving fails we undo it.
@@ -144,6 +156,28 @@ class FeedViewModel(private val uid: String) : ViewModel() {
                     )
                 } else it
             })
+        }
+    }
+
+    // Save / unsave a post (the bookmark changes instantly).
+    fun toggleSave(postId: String) {
+        val current = _state.value.items.firstOrNull { it.post.id == postId } ?: return
+        val nowSaved = !current.saved
+        setLocalSaved(postId, nowSaved)
+        viewModelScope.launch {
+            try {
+                savedRepo.setSaved(uid, postId, nowSaved)
+                _state.update { it.copy(error = if (nowSaved) "Saved. Find it in Menu > Saved." else "Removed from saved.") }
+            } catch (e: Exception) {
+                setLocalSaved(postId, !nowSaved)
+                _state.update { it.copy(error = "Could not update saved.") }
+            }
+        }
+    }
+
+    private fun setLocalSaved(postId: String, saved: Boolean) {
+        _state.update { s ->
+            s.copy(items = s.items.map { if (it.post.id == postId) it.copy(saved = saved) else it })
         }
     }
 

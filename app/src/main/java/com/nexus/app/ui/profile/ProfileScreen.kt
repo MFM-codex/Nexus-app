@@ -15,8 +15,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -38,6 +42,7 @@ fun ProfileScreen(
     onSignOut: () -> Unit,
     isAdmin: Boolean = false,
     onOpenAdmin: () -> Unit = {},
+    onBack: (() -> Unit)? = null,
 ) {
     val profile by vm.profile.collectAsState()
     val setupError by vm.setupError.collectAsState()
@@ -60,6 +65,13 @@ fun ProfileScreen(
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        if (onBack != null) {
+            Row(Modifier.padding(4.dp)) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
+            }
+        }
         ProfileHeader(p.coverUrl, p.avatarUrl, p.name.take(1).uppercase())
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             Text(p.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)

@@ -136,6 +136,15 @@ service cloud.firestore {
         allow delete: if signedIn() && request.auth.uid == uid;
       }
 
+      // users/{uid}/saved/{postId}: your private list of saved posts.
+      match /saved/{savedPostId} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow create: if signedIn() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['savedAt'])
+          && request.resource.data.savedAt == request.time;
+        allow delete: if signedIn() && request.auth.uid == uid;
+      }
+
       // users/{uid}/blocked/{blockedId}: only you can see or change YOUR block list.
       // (The rules for friend requests peek at it to stop blocked people, without showing it to them.)
       match /blocked/{blockedId} {

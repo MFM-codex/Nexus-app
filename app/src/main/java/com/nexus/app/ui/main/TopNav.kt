@@ -10,10 +10,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -38,7 +38,7 @@ private val navTabs = listOf(
     NavTab("reels", "Reels", Icons.Filled.PlayCircle),
     NavTab("friends", "Friends", Icons.Filled.People),
     NavTab("alerts", "Alerts", Icons.Filled.Notifications),
-    NavTab("profile", "Profile", Icons.Filled.Person),
+    NavTab("menu", "Menu", Icons.Filled.Menu),
 )
 
 // The screens that show this bar.

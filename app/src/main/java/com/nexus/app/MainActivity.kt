@@ -3,7 +3,11 @@ package com.nexus.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.DisposableEffect
+import com.nexus.app.data.AppSettings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -25,8 +29,27 @@ import kotlinx.coroutines.delay
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppSettings.load(applicationContext)
         enableEdgeToEdge()
-        setContent { NexusTheme { NexusRoot() } }
+        setContent {
+            val theme by AppSettings.theme.collectAsState()
+            val dark = when (theme) {
+                "dark" -> true
+                "light" -> false
+                else -> isSystemInDarkTheme()
+            }
+            // Keep the clock/battery icons readable when the app theme differs from the phone's
+            DisposableEffect(dark) {
+                val bars = if (dark) {
+                    SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                } else {
+                    SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+                }
+                enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+                onDispose { }
+            }
+            NexusTheme(darkTheme = dark) { NexusRoot() }
+        }
     }
 }
 

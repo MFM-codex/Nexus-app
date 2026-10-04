@@ -58,6 +58,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import com.nexus.app.data.AppSettings
 import com.nexus.app.ui.components.Avatar
 import com.nexus.app.ui.components.LoadingDots
 import com.nexus.app.ui.components.ReportDialog
@@ -73,6 +74,7 @@ fun ReelsScreen(
     val state by vm.state.collectAsState()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
+    val dataSaver by AppSettings.dataSaver.collectAsState()
 
     // One video player is shared by all the reels (cheaper than one per reel)
     val player = remember {
@@ -144,9 +146,14 @@ fun ReelsScreen(
             LaunchedEffect(current?.reel?.id) {
                 if (current != null) {
                     failed = false
+                    if (dataSaver) player.stop() // Data saver: don't download until the person taps
                     player.setMediaItem(MediaItem.fromUri(current.reel.videoUrl))
-                    player.prepare()
-                    player.playWhenReady = true
+                    if (dataSaver) {
+                        player.playWhenReady = false
+                    } else {
+                        player.prepare()
+                        player.playWhenReady = true
+                    }
                 }
             }
             // Load more when near the end
@@ -169,7 +176,10 @@ fun ReelsScreen(
                         isPlaying = isPlaying,
                         buffering = buffering,
                         failed = failed,
-                        onTogglePlay = { player.playWhenReady = !player.playWhenReady },
+                        onTogglePlay = {
+                            if (player.playbackState == Player.STATE_IDLE) player.prepare()
+                            player.playWhenReady = !player.playWhenReady
+                        },
                         onLike = { vm.toggleLike(item.reel.id) },
                         onComments = { onOpenComments(item.reel.id) },
                         onDelete = { vm.deleteReel(item.reel.id) },

@@ -1,4 +1,4 @@
-# Nexus (Phase 8)
+# Nexus (Phase 9)
 
 Kotlin + Jetpack Compose + Firebase Auth/Firestore + Cloudinary (images).
 
@@ -68,3 +68,9 @@ reels/{id}            authorId, videoUrl (Cloudinary), caption, createdAt, likeC
   likes/{uid}, comments/{id}   same idea as posts
 reelLimits/{uid}      lastReelAt  (one reel every 30 seconds)
 Reels are public to every signed-in user. Videos play exactly as uploaded (max 60 s, 100 MB).
+
+## Menu (Phase 9)
+The 4th tab is now Menu (hamburger): profile, shortcuts, Saved, Settings & privacy, Help & support, Log out.
+users/{uid}/saved/{postId}   savedAt   (your private saved posts)
+Settings (theme, data saver) are stored on the phone, not in Firebase.
+Groups, Pages, Marketplace and Events are shown as "coming soon".
