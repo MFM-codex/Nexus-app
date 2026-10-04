@@ -24,7 +24,8 @@ class ChatsViewModel(private val me: String) : ViewModel() {
     private val repo = ChatRepository()
     private val postRepo = PostRepository()
 
-    val rows: StateFlow<List<ChatRow>> = repo.observeChats(me)
+    // null = still loading
+    val rows: StateFlow<List<ChatRow>?> = repo.observeChats(me)
         .map { list ->
             // hide conversations where nobody has written yet
             val active = list
@@ -41,10 +42,10 @@ class ChatsViewModel(private val me: String) : ViewModel() {
             }
         }
         .catch { emit(emptyList()) }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn<List<ChatRow>?>(viewModelScope, SharingStarted.Eagerly, null)
 
     val totalUnread: StateFlow<Int> = rows
-        .map { list -> list.sumOf { it.unread } }
+        .map { list -> list.orEmpty().sumOf { it.unread } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 }
 

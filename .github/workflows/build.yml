@@ -1,5 +1,5 @@
 # Builds the app in the cloud every time you push to GitHub.
-# Download the APK from the run's "Artifacts" section.
+# Download the APKs from the run's "Artifacts" section.
 name: Build APK
 
 on:
@@ -29,10 +29,16 @@ jobs:
         with:
           gradle-version: 8.9
 
-      - name: Build debug APK
-        run: gradle assembleDebug --no-daemon
+      - name: Build debug and release APKs
+        run: gradle assembleDebug assembleRelease --no-daemon
 
       - uses: actions/upload-artifact@v4
         with:
           name: nexus-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+
+      # The one to share with friends: faster and not a debug build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nexus-release-apk
+          path: app/build/outputs/apk/release/app-release.apk

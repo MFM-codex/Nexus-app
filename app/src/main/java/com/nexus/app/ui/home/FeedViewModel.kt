@@ -27,6 +27,7 @@ data class FeedState(
     val loadingMore: Boolean = false,
     val endReached: Boolean = false,
     val loadedOnce: Boolean = false,
+    val loadFailed: Boolean = false, // the first load failed (offline?) so we can offer "Try again"
     val error: String? = null,
 )
 
@@ -63,11 +64,11 @@ class FeedViewModel(private val uid: String) : ViewModel() {
                 cursor = page.last
                 val items = toUi(page.posts)
                 _state.update {
-                    it.copy(items = items, endReached = page.end, refreshing = false, loadedOnce = true)
+                    it.copy(items = items, endReached = page.end, refreshing = false, loadedOnce = true, loadFailed = false)
                 }
             } catch (e: Exception) {
                 _state.update {
-                    it.copy(refreshing = false, loadedOnce = true, error = e.message ?: "Could not load posts.")
+                    it.copy(refreshing = false, loadedOnce = true, loadFailed = true, error = e.message ?: "Could not load posts.")
                 }
             }
             loading = false
@@ -224,7 +225,7 @@ class FeedViewModel(private val uid: String) : ViewModel() {
                 null
             } catch (e: Exception) {
                 if (e.message?.contains("PERMISSION_DENIED") == true) {
-                    "Not allowed. Check that your Firestore rules are published."
+                    "Couldn't post. If you posted a moment ago, wait 10 seconds and try again."
                 } else {
                     e.message ?: "Could not post."
                 }

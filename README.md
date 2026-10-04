@@ -1,4 +1,4 @@
-# Nexus (Phase 5)
+# Nexus (Phase 6, final)
 
 Kotlin + Jetpack Compose + Firebase Auth/Firestore + Cloudinary (images).
 
@@ -45,3 +45,20 @@ users/{uid}/blocked/{id}   createdAt                                           [
 reports/{uid_type_target}  reporterId, targetType, targetId, targetUserId, reason, details, status, createdAt  [Phase 5 done]
 admins/{uid}               (you create by hand)                               [Phase 5 done]
 banned/{uid}               by, createdAt                                      [Phase 5 done]
+
+## Releasing (Phase 6)
+Every push builds two files on GitHub (Actions > latest run > Artifacts):
+  nexus-debug-apk    for testing
+  nexus-release-apk  the one to share with friends (faster, not a debug build)
+Both are signed with app/nexus-debug.keystore, so one installs over the other and
+Google sign-in keeps working. For the Play Store you would create a private release key
+(never commit it) and store it in GitHub Secrets.
+
+## Security checklist
+- Every write is checked by firestore.rules (you can only change your own data).
+- Text, field names and sizes are validated in the rules, not just in the app.
+- Posts, comments, chats, likes and notifications are limited to friends.
+- Admin and ban powers are controlled by documents only you can create (admins/banned).
+- Posting is rate-limited to once per 10 seconds (rateLimits/{uid}).
+- Not covered (needs the paid plan or Play Store): App Check, push notifications, auto-deleting
+  old comments/likes when a post is deleted.

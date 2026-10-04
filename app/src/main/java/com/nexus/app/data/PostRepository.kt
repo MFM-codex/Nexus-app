@@ -102,7 +102,9 @@ class PostRepository {
         posts.document(postId).get().await().getString("authorId")
 
     suspend fun createPost(uid: String, text: String, imageUrl: String) {
-        posts.add(
+        val batch = db.batch()
+        batch.set(
+            posts.document(),
             mapOf(
                 "authorId" to uid,
                 "text" to text,
@@ -111,7 +113,14 @@ class PostRepository {
                 "likeCount" to 0,
                 "commentCount" to 0,
             )
-        ).await()
+        )
+        // Rate limit: the security rules only accept a post if this time stamp
+        // moves forward by at least 10 seconds since your last post.
+        batch.set(
+            db.collection("rateLimits").document(uid),
+            mapOf("lastPostAt" to FieldValue.serverTimestamp())
+        )
+        batch.commit().await()
     }
 
     suspend fun editPost(postId: String, text: String) {

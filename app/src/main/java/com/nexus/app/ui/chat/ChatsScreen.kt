@@ -1,6 +1,7 @@
 package com.nexus.app.ui.chat
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Badge
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -28,7 +30,8 @@ import com.nexus.app.ui.components.timeAgo
 // The Chats tab: your conversations, newest first.
 @Composable
 fun ChatsScreen(vm: ChatsViewModel, myUid: String, onOpenChat: (String) -> Unit) {
-    val rows by vm.rows.collectAsState()
+    val loadedRows by vm.rows.collectAsState()
+    val rows = loadedRows.orEmpty()
 
     Column(Modifier.fillMaxSize()) {
         Text(
@@ -39,7 +42,13 @@ fun ChatsScreen(vm: ChatsViewModel, myUid: String, onOpenChat: (String) -> Unit)
         )
         HorizontalDivider()
         LazyColumn(Modifier.fillMaxSize()) {
-            if (rows.isEmpty()) {
+            if (loadedRows == null) {
+                item {
+                    Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
+            } else if (rows.isEmpty()) {
                 item {
                     Text(
                         "No conversations yet. Open a friend's profile and tap Message.",

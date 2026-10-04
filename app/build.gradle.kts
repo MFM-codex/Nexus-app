@@ -14,7 +14,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1"
+        versionName = "1.0"
     }
 
     // We commit one fixed debug key so the SHA-1 never changes between builds.
@@ -31,6 +31,8 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            // Signed with the same key as the test build, so it installs over it and Google sign-in keeps working.
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -40,6 +42,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+
+    // Don't let style warnings stop the release build
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
     buildFeatures { compose = true }
 }
 

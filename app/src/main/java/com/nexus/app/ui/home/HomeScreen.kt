@@ -2,12 +2,14 @@ package com.nexus.app.ui.home
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -82,11 +84,23 @@ fun HomeScreen(
                 }
                 if (state.loadedOnce && state.items.isEmpty()) {
                     item {
-                        Text(
-                            "No posts yet. Be the first to post!",
-                            modifier = Modifier.padding(24.dp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        if (state.loadFailed) {
+                            Column(Modifier.padding(24.dp)) {
+                                Text(
+                                    "Couldn't load posts. Check your internet connection.",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Button(onClick = { vm.refresh() }, modifier = Modifier.padding(top = 12.dp)) {
+                                    Text("Try again")
+                                }
+                            }
+                        } else {
+                            Text(
+                                "No posts yet. Add friends from the Friends tab, or be the first to post!",
+                                modifier = Modifier.padding(24.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
                 items(state.items, key = { it.post.id }) { item ->

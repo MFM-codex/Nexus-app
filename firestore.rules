@@ -195,9 +195,30 @@ service cloud.firestore {
         && math.abs(n.commentCount - o.commentCount) <= 1;
     }
 
+    // Rate limit: you can post at most once every 10 seconds.
+    // The app saves a "last post" time in rateLimits/{you} together with every post;
+    // the post is only accepted if that time moved forward by 10+ seconds.
+    function postRateOk() {
+      return getAfter(/databases/$(database)/documents/rateLimits/$(request.auth.uid)).data.lastPostAt == request.time
+        && (!exists(/databases/$(database)/documents/rateLimits/$(request.auth.uid))
+            || request.time > get(/databases/$(database)/documents/rateLimits/$(request.auth.uid)).data.lastPostAt + duration.value(10, 's'));
+    }
+
+    // rateLimits/{uid}: you can only write your OWN timer, and only forward by 10+ seconds.
+    match /rateLimits/{rateUid} {
+      allow create: if signedIn() && request.auth.uid == rateUid
+        && request.resource.data.keys().hasOnly(['lastPostAt'])
+        && request.resource.data.lastPostAt == request.time;
+      allow update: if signedIn() && request.auth.uid == rateUid
+        && request.resource.data.keys().hasOnly(['lastPostAt'])
+        && request.resource.data.lastPostAt == request.time
+        && request.time > resource.data.lastPostAt + duration.value(10, 's');
+      allow read, delete: if false;
+    }
+
     match /posts/{postId} {
       allow read: if signedIn() && (canSee(resource.data.authorId) || isAdmin());
-      allow create: if signedIn() && validNewPost(request.resource.data) && notBanned();
+      allow create: if signedIn() && validNewPost(request.resource.data) && notBanned() && postRateOk();
       allow update: if signedIn()
         && (isOwnerEdit() || (canSee(resource.data.authorId) && isCounterUpdate()));
       allow delete: if signedIn() && (resource.data.authorId == request.auth.uid || isAdmin());

@@ -21,7 +21,8 @@ class NotificationsViewModel(private val me: String) : ViewModel() {
     private val repo = NotificationRepository()
     private val postRepo = PostRepository()
 
-    val items: StateFlow<List<NotifUi>> = repo.observe(me)
+    // null = still loading
+    val items: StateFlow<List<NotifUi>?> = repo.observe(me)
         .map { list ->
             val actors = try {
                 postRepo.authors(list.map { it.actorId }.toSet())
@@ -31,10 +32,10 @@ class NotificationsViewModel(private val me: String) : ViewModel() {
             list.map { NotifUi(it, actors[it.actorId]) }
         }
         .catch { emit(emptyList()) }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn<List<NotifUi>?>(viewModelScope, SharingStarted.Eagerly, null)
 
     val unreadCount: StateFlow<Int> = items
-        .map { list -> list.count { !it.n.read } }
+        .map { list -> list.orEmpty().count { !it.n.read } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     fun markRead(id: String) {
@@ -48,7 +49,7 @@ class NotificationsViewModel(private val me: String) : ViewModel() {
     }
 
     fun markAllRead() {
-        val ids = items.value.filter { !it.n.read }.map { it.n.id }
+        val ids = items.value.orEmpty().filter { !it.n.read }.map { it.n.id }
         viewModelScope.launch {
             try {
                 repo.markRead(me, ids)

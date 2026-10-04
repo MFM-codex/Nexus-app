@@ -106,7 +106,13 @@ fun FriendsScreen(vm: FriendsViewModel, myUid: String, onOpenUser: (String) -> U
 
                 if (tab == 0) {
                     LazyColumn(Modifier.fillMaxSize()) {
-                        if (friends.isEmpty()) {
+                        if (!state.loaded) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator()
+                                }
+                            }
+                        } else if (friends.isEmpty()) {
                             item {
                                 Text(
                                     "No friends yet. Search for people above and send a request.",
@@ -122,7 +128,7 @@ fun FriendsScreen(vm: FriendsViewModel, myUid: String, onOpenUser: (String) -> U
                     }
                 } else {
                     LazyColumn(Modifier.fillMaxSize()) {
-                        if (incoming.isEmpty() && outgoing.isEmpty()) {
+                        if (state.loaded && incoming.isEmpty() && outgoing.isEmpty()) {
                             item {
                                 Text(
                                     "No friend requests.",

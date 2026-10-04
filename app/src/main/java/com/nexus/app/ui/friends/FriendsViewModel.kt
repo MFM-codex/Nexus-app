@@ -24,6 +24,7 @@ data class FriendsState(
     val query: String = "",                            // what I typed in the search box
     val results: List<Profile> = emptyList(),
     val searching: Boolean = false,
+    val loaded: Boolean = false,                       // the friends list has loaded at least once
     val blocked: Set<String> = emptySet(),             // people I blocked
     val error: String? = null,
 )
@@ -42,7 +43,7 @@ class FriendsViewModel(private val me: String) : ViewModel() {
         // Live: updates by itself when someone sends or accepts a request.
         viewModelScope.launch {
             repo.observe(me)
-                .catch { e -> _state.update { it.copy(error = e.message ?: "Could not load friends.") } }
+                .catch { e -> _state.update { it.copy(loaded = true, error = e.message ?: "Could not load friends.") } }
                 .collect { list ->
                     val others = list.map { it.other(me) }.toSet()
                     val loaded = try {
@@ -50,7 +51,7 @@ class FriendsViewModel(private val me: String) : ViewModel() {
                     } catch (e: Exception) {
                         emptyMap()
                     }
-                    _state.update { it.copy(friendships = list, profiles = it.profiles + loaded) }
+                    _state.update { it.copy(friendships = list, profiles = it.profiles + loaded, loaded = true) }
                 }
         }
         // Live list of people I blocked
