@@ -46,6 +46,10 @@ import com.nexus.app.ui.profile.ProfileScreen
 import com.nexus.app.ui.profile.ProfileViewModel
 import com.nexus.app.ui.profile.ProfileViewModelFactory
 import com.nexus.app.ui.profile.SetupProfileScreen
+import com.nexus.app.ui.reels.NewReelScreen
+import com.nexus.app.ui.reels.ReelsScreen
+import com.nexus.app.ui.reels.ReelsViewModel
+import com.nexus.app.ui.reels.ReelsViewModelFactory
 
 // If an admin banned this account we show a "suspended" page instead of the app.
 @Composable
@@ -91,6 +95,10 @@ private fun MainContent(
     val feedVm: FeedViewModel = viewModel(
         key = "feed_${user.uid}",
         factory = FeedViewModelFactory(user.uid),
+    )
+    val reelsVm: ReelsViewModel = viewModel(
+        key = "reels_${user.uid}",
+        factory = ReelsViewModelFactory(user.uid),
     )
     val friendsVm: FriendsViewModel = viewModel(
         key = "friends_${user.uid}",
@@ -164,6 +172,33 @@ private fun MainContent(
                     myUid = user.uid,
                     onBack = { nav.popBackStack() },
                     onCountChange = { delta -> feedVm.adjustCommentCount(postId, delta) },
+                )
+            }
+            composable("reels") {
+                ReelsScreen(
+                    vm = reelsVm,
+                    myUid = user.uid,
+                    onNewReel = { nav.navigate("newReel") },
+                    onOpenComments = { reelId -> nav.navigate("reelComments/$reelId") },
+                )
+            }
+            composable("newReel") {
+                NewReelScreen(vm = reelsVm, onDone = { nav.popBackStack() })
+            }
+            composable(
+                route = "reelComments/{reelId}",
+                arguments = listOf(navArgument("reelId") { type = NavType.StringType }),
+            ) { entry ->
+                val reelId = entry.arguments?.getString("reelId") ?: return@composable
+                val reelCommentsVm: CommentsViewModel = viewModel(
+                    key = "reelcomments_$reelId",
+                    factory = CommentsViewModelFactory(reelId, user.uid, "reels"),
+                )
+                CommentsScreen(
+                    vm = reelCommentsVm,
+                    myUid = user.uid,
+                    onBack = { nav.popBackStack() },
+                    onCountChange = { delta -> reelsVm.adjustCommentCount(reelId, delta) },
                 )
             }
             composable("friends") {

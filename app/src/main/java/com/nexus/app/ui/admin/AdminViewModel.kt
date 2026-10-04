@@ -7,6 +7,8 @@ import com.nexus.app.data.AdminRepository
 import com.nexus.app.data.Post
 import com.nexus.app.data.PostRepository
 import com.nexus.app.data.Profile
+import com.nexus.app.data.Reel
+import com.nexus.app.data.ReelRepository
 import com.nexus.app.data.Report
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,13 +22,20 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 // A report plus the people and post it is about, ready to draw.
-data class ReportUi(val report: Report, val reporter: Profile?, val target: Profile?, val post: Post?)
+data class ReportUi(
+    val report: Report,
+    val reporter: Profile?,
+    val target: Profile?,
+    val post: Post?,
+    val reel: Reel? = null,
+)
 
 // Knows whether I'm an admin, whether I'm banned, and (for admins) the open reports.
 @OptIn(ExperimentalCoroutinesApi::class)
 class AdminViewModel(private val me: String) : ViewModel() {
     private val repo = AdminRepository()
     private val postRepo = PostRepository()
+    private val reelRepo = ReelRepository()
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
@@ -75,7 +84,16 @@ class AdminViewModel(private val me: String) : ViewModel() {
             } else {
                 null
             }
-            ReportUi(r, people[r.reporterId], people[r.targetUserId], post)
+            val reel = if (r.targetType == "reel") {
+                try {
+                    reelRepo.get(r.targetId)
+                } catch (e: Exception) {
+                    null
+                }
+            } else {
+                null
+            }
+            ReportUi(r, people[r.reporterId], people[r.targetUserId], post, reel)
         }
     }
 
@@ -85,6 +103,11 @@ class AdminViewModel(private val me: String) : ViewModel() {
 
     fun deletePost(report: Report) = act("Post deleted.") {
         repo.deletePost(report.targetId)
+        repo.setStatus(report.id, "resolved")
+    }
+
+    fun deleteReel(report: Report) = act("Reel deleted.") {
+        repo.deleteReel(report.targetId)
         repo.setStatus(report.id, "resolved")
     }
 

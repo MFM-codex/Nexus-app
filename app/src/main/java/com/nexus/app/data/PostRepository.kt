@@ -42,9 +42,9 @@ private fun DocumentSnapshot.toComment() = Comment(
 //   posts/{postId}                    authorId, text, imageUrl, createdAt, likeCount, commentCount
 //   posts/{postId}/likes/{uid}        createdAt   (doc id = who liked, so nobody can like twice)
 //   posts/{postId}/comments/{id}      authorId, text, createdAt
-class PostRepository {
+class PostRepository(collection: String = "posts") {
     private val db = FirebaseFirestore.getInstance()
-    private val posts = db.collection("posts")
+    private val posts = db.collection(collection)
     private val users = db.collection("users")
 
     // Remember authors we already loaded so we don't fetch them again.

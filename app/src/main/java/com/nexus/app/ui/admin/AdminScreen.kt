@@ -105,17 +105,21 @@ fun AdminScreen(vm: AdminViewModel, onBack: () -> Unit, onOpenUser: (String) -> 
         val who = r.target?.name ?: "this user"
         AlertDialog(
             onDismissRequest = { confirm = null },
-            title = { Text(if (action == "delete") "Delete this post?" else "Ban $who?") },
+            title = { Text(if (action == "delete") "Delete this?" else "Ban $who?") },
             text = {
                 Text(
-                    if (action == "delete") "The post is removed for everyone."
+                    if (action == "delete") "It is removed for everyone."
                     else "They won't be able to post, comment, message or send friend requests."
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     confirm = null
-                    if (action == "delete") vm.deletePost(r.report) else vm.ban(r.report)
+                    if (action == "delete") {
+                        if (r.report.targetType == "reel") vm.deleteReel(r.report) else vm.deletePost(r.report)
+                    } else {
+                        vm.ban(r.report)
+                    }
                 }) { Text(if (action == "delete") "Delete" else "Ban") }
             },
             dismissButton = { TextButton(onClick = { confirm = null }) { Text("Cancel") } },
@@ -172,6 +176,24 @@ private fun ReportCard(
                         )
                     }
                 }
+            } else if (r.targetType == "reel") {
+                Text("Reel by $targetName", fontWeight = FontWeight.Medium)
+                val reel = item.reel
+                if (reel == null) {
+                    Text("(this reel no longer exists)", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    if (reel.caption.isNotBlank()) Text(reel.caption.take(300))
+                    AsyncImage(
+                        model = reel.thumbnailUrl,
+                        contentDescription = "Reel preview",
+                        contentScale = ContentScale.FillWidth,
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                    )
+                }
             } else {
                 Text("User: $targetName", fontWeight = FontWeight.Medium)
             }
@@ -189,6 +211,9 @@ private fun ReportCard(
             Row {
                 if (r.targetType == "post" && item.post != null) {
                     TextButton(onClick = onDeletePost) { Text("Delete post") }
+                }
+                if (r.targetType == "reel" && item.reel != null) {
+                    TextButton(onClick = onDeletePost) { Text("Delete reel") }
                 }
                 TextButton(onClick = onBan) { Text("Ban user") }
             }

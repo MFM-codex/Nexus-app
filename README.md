@@ -1,4 +1,4 @@
-# Nexus (Phase 6, final)
+# Nexus (Phase 8)
 
 Kotlin + Jetpack Compose + Firebase Auth/Firestore + Cloudinary (images).
 
@@ -62,3 +62,9 @@ Google sign-in keeps working. For the Play Store you would create a private rele
 - Posting is rate-limited to once per 10 seconds (rateLimits/{uid}).
 - Not covered (needs the paid plan or Play Store): App Check, push notifications, auto-deleting
   old comments/likes when a post is deleted.
+
+## Reels (Phase 8)
+reels/{id}            authorId, videoUrl (Cloudinary), caption, createdAt, likeCount, commentCount
+  likes/{uid}, comments/{id}   same idea as posts
+reelLimits/{uid}      lastReelAt  (one reel every 30 seconds)
+Reels are public to every signed-in user. Videos play exactly as uploaded (max 60 s, 100 MB).

@@ -251,6 +251,72 @@ service cloud.firestore {
       }
     }
 
+    // ---------- REELS (Phase 8) ----------
+
+    // A new reel: your own id, a Cloudinary video link, a short caption, server time, zero counts.
+    function validNewReel(d) {
+      return d.keys().hasOnly(['authorId', 'videoUrl', 'caption', 'createdAt', 'likeCount', 'commentCount'])
+        && d.keys().hasAll(['authorId', 'videoUrl', 'caption', 'createdAt', 'likeCount', 'commentCount'])
+        && d.authorId == request.auth.uid
+        && d.videoUrl is string && d.videoUrl.size() <= 500
+        && d.videoUrl.matches('^https://res[.]cloudinary[.]com/.*')
+        && d.caption is string && d.caption.size() <= 150
+        && d.createdAt == request.time
+        && d.likeCount == 0 && d.commentCount == 0;
+    }
+
+    // Rate limit: you can post at most one reel every 30 seconds (same idea as for posts).
+    function reelRateOk() {
+      return getAfter(/databases/$(database)/documents/reelLimits/$(request.auth.uid)).data.lastReelAt == request.time
+        && (!exists(/databases/$(database)/documents/reelLimits/$(request.auth.uid))
+            || request.time > get(/databases/$(database)/documents/reelLimits/$(request.auth.uid)).data.lastReelAt + duration.value(30, 's'));
+    }
+
+    match /reelLimits/{rateUid} {
+      allow create: if signedIn() && request.auth.uid == rateUid
+        && request.resource.data.keys().hasOnly(['lastReelAt'])
+        && request.resource.data.lastReelAt == request.time;
+      allow update: if signedIn() && request.auth.uid == rateUid
+        && request.resource.data.keys().hasOnly(['lastReelAt'])
+        && request.resource.data.lastReelAt == request.time
+        && request.time > resource.data.lastReelAt + duration.value(30, 's');
+      allow read, delete: if false;
+    }
+
+    // reels/{reelId}: reels are PUBLIC to everyone signed in (like Facebook Reels).
+    // Only the author (or an admin) can delete one. Nobody can edit one.
+    match /reels/{reelId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && validNewReel(request.resource.data) && notBanned() && reelRateOk();
+      allow update: if signedIn() && isCounterUpdate();
+      allow delete: if signedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+
+      match /likes/{likerId} {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.auth.uid == likerId
+          && exists(/databases/$(database)/documents/reels/$(reelId))
+          && request.resource.data.keys().hasOnly(['createdAt'])
+          && request.resource.data.createdAt == request.time;
+        allow update: if false;
+        allow delete: if signedIn() && request.auth.uid == likerId;
+      }
+
+      match /comments/{commentId} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && exists(/databases/$(database)/documents/reels/$(reelId))
+          && notBanned()
+          && request.resource.data.keys().hasOnly(['authorId', 'text', 'createdAt'])
+          && request.resource.data.authorId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 500
+          && request.resource.data.createdAt == request.time;
+        allow update: if false;
+        allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
+      }
+    }
+
     // ---------- CHATS (Phase 4) ----------
 
     // chats/{chatId}: a private conversation between two FRIENDS
@@ -312,7 +378,7 @@ service cloud.firestore {
       return d.keys().hasOnly(['reporterId', 'targetType', 'targetId', 'targetUserId', 'reason', 'details', 'status', 'createdAt'])
         && d.keys().hasAll(['reporterId', 'targetType', 'targetId', 'targetUserId', 'reason', 'details', 'status', 'createdAt'])
         && d.reporterId == request.auth.uid
-        && d.targetType in ['user', 'post']
+        && d.targetType in ['user', 'post', 'reel']
         && d.targetId is string && d.targetId.size() > 0 && d.targetId.size() <= 100
         && d.targetUserId is string && d.targetUserId != request.auth.uid
         && d.reason in ['spam', 'harassment', 'fake', 'inappropriate', 'other']

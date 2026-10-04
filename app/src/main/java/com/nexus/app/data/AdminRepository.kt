@@ -66,6 +66,10 @@ class AdminRepository {
         db.collection("posts").document(postId).delete().await()
     }
 
+    suspend fun deleteReel(reelId: String) {
+        db.collection("reels").document(reelId).delete().await()
+    }
+
     suspend fun ban(userId: String, adminId: String) {
         db.collection("banned").document(userId).set(
             mapOf("by" to adminId, "createdAt" to FieldValue.serverTimestamp())

@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Badge
@@ -34,6 +35,7 @@ private data class NavTab(val route: String, val label: String, val icon: ImageV
 
 private val navTabs = listOf(
     NavTab("home", "Home", Icons.Filled.Home),
+    NavTab("reels", "Reels", Icons.Filled.PlayCircle),
     NavTab("friends", "Friends", Icons.Filled.People),
     NavTab("alerts", "Alerts", Icons.Filled.Notifications),
     NavTab("profile", "Profile", Icons.Filled.Person),

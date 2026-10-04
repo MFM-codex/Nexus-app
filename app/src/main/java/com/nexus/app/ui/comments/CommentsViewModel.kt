@@ -14,8 +14,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class CommentsViewModel(private val postId: String, private val uid: String) : ViewModel() {
-    private val repo = PostRepository()
+class CommentsViewModel(
+    private val postId: String,
+    private val uid: String,
+    collection: String = "posts", // "reels" for comments on a reel
+) : ViewModel() {
+    private val repo = PostRepository(collection)
     private val notifRepo = NotificationRepository()
 
     private val _error = MutableStateFlow<String?>(null)
@@ -75,7 +79,11 @@ class CommentsViewModel(private val postId: String, private val uid: String) : V
     }
 }
 
-class CommentsViewModelFactory(private val postId: String, private val uid: String) : ViewModelProvider.Factory {
+class CommentsViewModelFactory(
+    private val postId: String,
+    private val uid: String,
+    private val collection: String = "posts",
+) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T = CommentsViewModel(postId, uid) as T
+    override fun <T : ViewModel> create(modelClass: Class<T>): T = CommentsViewModel(postId, uid, collection) as T
 }
