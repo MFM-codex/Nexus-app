@@ -1,5 +1,6 @@
 package com.nexus.app.ui.menu
 
+import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,14 +17,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Settings
@@ -33,6 +37,7 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
@@ -50,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nexus.app.data.Profile
@@ -64,112 +70,136 @@ private data class Tile(
     val onClick: () -> Unit = {},
 )
 
-// The Menu tab (the "hamburger"): your profile, shortcuts, settings, help and log out.
+// The Menu page (opened with the hamburger button): profile, shortcuts, settings, help, log out.
 @Composable
 fun MenuScreen(
     profile: Profile?,
     isAdmin: Boolean,
     unreadChats: Int,
-    unreadAlerts: Int,
+    onBack: () -> Unit,
     onOpenProfile: () -> Unit,
+    onMessages: () -> Unit,
+    onGroups: () -> Unit,
     onFriends: () -> Unit,
     onReels: () -> Unit,
-    onChats: () -> Unit,
-    onAlerts: () -> Unit,
+    onMarketplace: () -> Unit,
+    onPages: () -> Unit,
     onSaved: () -> Unit,
+    onEvents: () -> Unit,
     onAdmin: () -> Unit,
     onSettings: () -> Unit,
     onHelp: () -> Unit,
     onLogout: () -> Unit,
 ) {
+    val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var confirmLogout by remember { mutableStateOf(false) }
     val name = profile?.name ?: "Your profile"
 
     val tiles = buildList {
+        add(Tile("Messages", Icons.Filled.ChatBubble, badge = unreadChats, onClick = onMessages))
+        add(Tile("Groups", Icons.Filled.Groups, onClick = onGroups))
         add(Tile("Friends", Icons.Filled.People, onClick = onFriends))
         add(Tile("Reels", Icons.Filled.PlayCircle, onClick = onReels))
-        add(Tile("Chats", Icons.Filled.ChatBubble, badge = unreadChats, onClick = onChats))
-        add(Tile("Alerts", Icons.Filled.Notifications, badge = unreadAlerts, onClick = onAlerts))
+        add(Tile("Marketplace", Icons.Filled.Storefront, onClick = onMarketplace))
+        add(Tile("Pages", Icons.Filled.Flag, onClick = onPages))
         add(Tile("Saved", Icons.Filled.Bookmark, onClick = onSaved))
-        add(Tile("Groups", Icons.Filled.Groups, soon = true))
-        add(Tile("Pages", Icons.Filled.Flag, soon = true))
-        add(Tile("Marketplace", Icons.Filled.Storefront, soon = true))
-        add(Tile("Events", Icons.Filled.Event, soon = true))
+        add(Tile("Events", Icons.Filled.Event, onClick = onEvents))
+        add(Tile("Memories", Icons.Filled.History, soon = true))
+        add(Tile("Birthdays", Icons.Filled.Cake, soon = true))
         if (isAdmin) add(Tile("Admin panel", Icons.Filled.AdminPanelSettings, onClick = onAdmin))
     }
 
     Box(Modifier.fillMaxSize()) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(12.dp)
-        ) {
-            Text("Menu", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(12.dp))
-
-            // Your profile
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenProfile),
-            ) {
-                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Avatar(profile?.avatarUrl, name, size = 48.dp)
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text(name, fontWeight = FontWeight.Bold)
-                        Text("See your profile", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(4.dp)) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                 }
+                Text("Menu", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             }
 
-            Spacer(Modifier.height(16.dp))
-            Text("Your shortcuts", fontWeight = FontWeight.Bold)
-
-            tiles.chunked(2).forEach { pair ->
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+            Column(Modifier.padding(horizontal = 12.dp)) {
+                // Your profile
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenProfile),
                 ) {
-                    pair.forEach { tile ->
-                        ShortcutTile(
-                            tile = tile,
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                if (tile.soon) {
-                                    scope.launch { snackbar.showSnackbar("${tile.label} is coming soon") }
-                                } else {
-                                    tile.onClick()
-                                }
-                            },
-                        )
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Avatar(profile?.avatarUrl, name, size = 52.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text(name, fontWeight = FontWeight.Bold)
+                            Text("View your profile", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
-                    if (pair.size == 1) Spacer(Modifier.weight(1f))
                 }
-            }
 
-            Spacer(Modifier.height(20.dp))
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Column {
-                    MenuRow(Icons.Filled.Settings, "Settings & privacy", onSettings)
-                    HorizontalDivider()
-                    MenuRow(Icons.Filled.Info, "Help & support", onHelp)
+                // Invite friends
+                Spacer(Modifier.height(10.dp))
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, "Join me on Nexus! Ask me for the app link.")
+                        }
+                        context.startActivity(Intent.createChooser(send, "Invite friends"))
+                    },
+                ) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Favorite, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.width(14.dp))
+                        Text("Invite friends", fontWeight = FontWeight.Medium)
+                    }
                 }
-            }
 
-            Spacer(Modifier.height(20.dp))
-            OutlinedButton(
-                onClick = { confirmLogout = true },
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-            ) { Text("Log out") }
-            Spacer(Modifier.height(24.dp))
+                // The shortcut grid
+                tiles.chunked(2).forEach { pair ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        pair.forEach { tile ->
+                            ShortcutTile(
+                                tile = tile,
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    if (tile.soon) {
+                                        scope.launch { snackbar.showSnackbar("${tile.label} is coming soon") }
+                                    } else {
+                                        tile.onClick()
+                                    }
+                                },
+                            )
+                        }
+                        if (pair.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column {
+                        MenuRow(Icons.Filled.Settings, "Settings & privacy", onSettings)
+                        HorizontalDivider()
+                        MenuRow(Icons.Filled.Info, "Help & support", onHelp)
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+                OutlinedButton(
+                    onClick = { confirmLogout = true },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                ) { Text("Log out") }
+                Spacer(Modifier.height(24.dp))
+            }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }

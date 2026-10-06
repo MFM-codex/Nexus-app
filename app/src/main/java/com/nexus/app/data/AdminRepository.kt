@@ -66,6 +66,10 @@ class AdminRepository {
         db.collection("posts").document(postId).delete().await()
     }
 
+    suspend fun deleteListing(listingId: String) {
+        db.collection("listings").document(listingId).delete().await()
+    }
+
     suspend fun deleteReel(reelId: String) {
         db.collection("reels").document(reelId).delete().await()
     }

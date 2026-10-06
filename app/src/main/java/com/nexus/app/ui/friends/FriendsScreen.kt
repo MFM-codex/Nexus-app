@@ -1,6 +1,7 @@
 package com.nexus.app.ui.friends
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,24 +13,27 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -40,11 +44,12 @@ import androidx.compose.ui.unit.dp
 import com.nexus.app.data.Profile
 import com.nexus.app.ui.components.Avatar
 
-// The Friends tab: search box on top, then "Friends" and "Requests" tabs.
+// The Friends tab, like Facebook's: friend requests on top, then Suggestions / Your friends.
 @Composable
 fun FriendsScreen(vm: FriendsViewModel, myUid: String, onOpenUser: (String) -> Unit) {
     val state by vm.state.collectAsState()
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    var chip by rememberSaveable { mutableIntStateOf(0) } // 0 Suggestions, 1 Your friends, 2 Sent requests
+    var searching by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(state.error) {
@@ -53,6 +58,9 @@ fun FriendsScreen(vm: FriendsViewModel, myUid: String, onOpenUser: (String) -> U
             vm.clearError()
         }
     }
+    LaunchedEffect(chip, state.friendships.size, state.blocked.size) {
+        if (chip == 0) vm.loadSuggestions()
+    }
 
     val friends = state.friendships.filter { it.status == "accepted" }
     val incoming = state.friendships.filter { it.status == "pending" && it.addresseeId == myUid }
@@ -60,16 +68,37 @@ fun FriendsScreen(vm: FriendsViewModel, myUid: String, onOpenUser: (String) -> U
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            OutlinedTextField(
-                value = state.query,
-                onValueChange = { vm.onQueryChange(it) },
-                placeholder = { Text("Search people by username") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
-            )
+            Row(
+                Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Friends",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = {
+                    searching = !searching
+                    if (!searching) vm.onQueryChange("")
+                }) {
+                    Icon(
+                        if (searching) Icons.Filled.Close else Icons.Filled.Search,
+                        contentDescription = "Search people",
+                    )
+                }
+            }
+            if (searching) {
+                OutlinedTextField(
+                    value = state.query,
+                    onValueChange = { vm.onQueryChange(it) },
+                    placeholder = { Text("Search people by username") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                )
+            }
 
-            if (state.query.isNotBlank()) {
+            if (searching && state.query.isNotBlank()) {
                 // ----- search results -----
                 if (state.searching) {
                     Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
@@ -98,60 +127,85 @@ fun FriendsScreen(vm: FriendsViewModel, myUid: String, onOpenUser: (String) -> U
                     }
                 }
             } else {
-                // ----- friends / requests tabs -----
-                TabRow(selectedTabIndex = tab) {
-                    Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Friends (${friends.size})") })
-                    Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Requests (${incoming.size})") })
-                }
-
-                if (tab == 0) {
-                    LazyColumn(Modifier.fillMaxSize()) {
-                        if (!state.loaded) {
-                            item {
-                                Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                                    CircularProgressIndicator()
-                                }
-                            }
-                        } else if (friends.isEmpty()) {
-                            item {
-                                Text(
-                                    "No friends yet. Search for people above and send a request.",
-                                    modifier = Modifier.padding(24.dp),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                        items(friends, key = { it.id }) { f ->
-                            val other = f.other(myUid)
-                            PersonRow(state.profiles[other], onClick = { onOpenUser(other) }) {}
+                LazyColumn(Modifier.fillMaxSize()) {
+                    item {
+                        Row(
+                            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            FilterChip(selected = chip == 0, onClick = { chip = 0 }, label = { Text("Suggestions") })
+                            FilterChip(selected = chip == 1, onClick = { chip = 1 }, label = { Text("Your friends (${friends.size})") })
+                            FilterChip(selected = chip == 2, onClick = { chip = 2 }, label = { Text("Sent (${outgoing.size})") })
                         }
                     }
-                } else {
-                    LazyColumn(Modifier.fillMaxSize()) {
-                        if (state.loaded && incoming.isEmpty() && outgoing.isEmpty()) {
-                            item {
-                                Text(
-                                    "No friend requests.",
-                                    modifier = Modifier.padding(24.dp),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+
+                    if (!state.loaded) {
+                        item {
+                            Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator()
                             }
                         }
-                        if (incoming.isNotEmpty()) {
-                            item { SectionTitle("Requests received") }
-                            items(incoming, key = { it.id }) { f ->
-                                val other = f.other(myUid)
-                                PersonRow(state.profiles[other], onClick = { onOpenUser(other) }) {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Button(onClick = { vm.accept(other) }) { Text("Accept") }
-                                        OutlinedButton(onClick = { vm.remove(other) }) { Text("Decline") }
-                                    }
+                    }
+
+                    // ----- friend requests -----
+                    if (incoming.isNotEmpty()) {
+                        item { SectionTitle("Friend requests (${incoming.size})") }
+                        items(incoming, key = { "in_" + it.id }) { f ->
+                            val other = f.other(myUid)
+                            RequestRow(
+                                profile = state.profiles[other],
+                                onOpen = { onOpenUser(other) },
+                                onConfirm = { vm.accept(other) },
+                                onDelete = { vm.remove(other) },
+                            )
+                        }
+                    }
+
+                    // ----- the chosen list -----
+                    when (chip) {
+                        0 -> {
+                            item { SectionTitle("People you may know") }
+                            if (state.suggestions.isEmpty()) {
+                                item {
+                                    Text(
+                                        "No suggestions right now. Use the search icon to find people by username.",
+                                        modifier = Modifier.padding(16.dp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                            items(state.suggestions, key = { "s_" + it.uid }) { person ->
+                                PersonRow(person, onClick = { onOpenUser(person.uid) }) {
+                                    Button(onClick = { vm.sendRequest(person.uid) }) { Text("Add friend") }
                                 }
                             }
                         }
-                        if (outgoing.isNotEmpty()) {
-                            item { SectionTitle("Requests sent") }
-                            items(outgoing, key = { it.id }) { f ->
+                        1 -> {
+                            if (state.loaded && friends.isEmpty()) {
+                                item {
+                                    Text(
+                                        "No friends yet. Check Suggestions to add some.",
+                                        modifier = Modifier.padding(16.dp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                            items(friends, key = { "f_" + it.id }) { f ->
+                                val other = f.other(myUid)
+                                PersonRow(state.profiles[other], onClick = { onOpenUser(other) }) {}
+                            }
+                        }
+                        else -> {
+                            if (state.loaded && outgoing.isEmpty()) {
+                                item {
+                                    Text(
+                                        "You haven't sent any requests.",
+                                        modifier = Modifier.padding(16.dp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                            items(outgoing, key = { "o_" + it.id }) { f ->
                                 val other = f.other(myUid)
                                 PersonRow(state.profiles[other], onClick = { onOpenUser(other) }) {
                                     OutlinedButton(onClick = { vm.remove(other) }) { Text("Cancel") }
@@ -170,10 +224,30 @@ fun FriendsScreen(vm: FriendsViewModel, myUid: String, onOpenUser: (String) -> U
 private fun SectionTitle(text: String) {
     Text(
         text,
-        style = MaterialTheme.typography.titleSmall,
+        style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(start = 12.dp, top = 16.dp, bottom = 4.dp),
+        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
     )
+}
+
+// A big friend request: picture, name, Confirm and Delete.
+@Composable
+private fun RequestRow(profile: Profile?, onOpen: () -> Unit, onConfirm: () -> Unit, onDelete: () -> Unit) {
+    val name = profile?.name ?: "Unknown user"
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Avatar(profile?.avatarUrl, name, size = 76.dp)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onConfirm, modifier = Modifier.weight(1f)) { Text("Confirm") }
+                OutlinedButton(onClick = onDelete, modifier = Modifier.weight(1f)) { Text("Delete") }
+            }
+        }
+    }
 }
 
 // One person in a list: avatar, name, @username, and something on the right.

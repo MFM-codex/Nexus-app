@@ -72,6 +72,18 @@ class PostRepository(collection: String = "posts") {
         )
     }
 
+    // All posts in this collection, newest first (used inside groups and pages).
+    suspend fun loadAll(before: Timestamp?): PostPage {
+        var query = posts.orderBy("createdAt", Query.Direction.DESCENDING)
+        if (before != null) query = query.startAfter(before)
+        val docs = query.limit(PAGE_SIZE.toLong()).get().await().documents
+        return PostPage(
+            posts = docs.map { it.toPost() },
+            last = docs.lastOrNull()?.getTimestamp("createdAt", ESTIMATE),
+            end = docs.size < PAGE_SIZE,
+        )
+    }
+
     // Look up the profiles of the given users (name, avatar...), 10 at a time.
     suspend fun authors(uids: Set<String>): Map<String, Profile> {
         val missing = uids.filter { it.isNotEmpty() && !authorCache.containsKey(it) }

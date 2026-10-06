@@ -56,6 +56,7 @@ fun PostCard(
     onDelete: () -> Unit,
     onReport: (String, String) -> Unit,
     onSave: () -> Unit,
+    showSave: Boolean = true,
 ) {
     val post = item.post
     val name = item.author?.name ?: "Unknown user"
@@ -146,7 +147,7 @@ fun PostCard(
                 Text("${post.commentCount}")
             }
             Spacer(Modifier.weight(1f))
-            IconButton(onClick = onSave) {
+            if (showSave) IconButton(onClick = onSave) {
                 Icon(
                     imageVector = if (item.saved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
                     contentDescription = if (item.saved) "Remove from saved" else "Save post",

@@ -40,6 +40,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.nexus.app.data.formatPrice
 import com.nexus.app.ui.components.reportReasons
 import com.nexus.app.ui.components.timeAgo
 
@@ -116,7 +117,11 @@ fun AdminScreen(vm: AdminViewModel, onBack: () -> Unit, onOpenUser: (String) -> 
                 TextButton(onClick = {
                     confirm = null
                     if (action == "delete") {
-                        if (r.report.targetType == "reel") vm.deleteReel(r.report) else vm.deletePost(r.report)
+                        when (r.report.targetType) {
+                            "reel" -> vm.deleteReel(r.report)
+                            "listing" -> vm.deleteListing(r.report)
+                            else -> vm.deletePost(r.report)
+                        }
                     } else {
                         vm.ban(r.report)
                     }
@@ -194,6 +199,25 @@ private fun ReportCard(
                             .clip(RoundedCornerShape(8.dp)),
                     )
                 }
+            } else if (r.targetType == "listing") {
+                Text("Marketplace listing by $targetName", fontWeight = FontWeight.Medium)
+                val listing = item.listing
+                if (listing == null) {
+                    Text("(this listing no longer exists)", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    Text("${listing.title} \u00B7 ${formatPrice(listing.price)}")
+                    if (listing.description.isNotBlank()) Text(listing.description.take(300))
+                    AsyncImage(
+                        model = listing.imageUrl,
+                        contentDescription = "Listing photo",
+                        contentScale = ContentScale.FillWidth,
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                    )
+                }
             } else {
                 Text("User: $targetName", fontWeight = FontWeight.Medium)
             }
@@ -214,6 +238,9 @@ private fun ReportCard(
                 }
                 if (r.targetType == "reel" && item.reel != null) {
                     TextButton(onClick = onDeletePost) { Text("Delete reel") }
+                }
+                if (r.targetType == "listing" && item.listing != null) {
+                    TextButton(onClick = onDeletePost) { Text("Delete listing") }
                 }
                 TextButton(onClick = onBan) { Text("Ban user") }
             }

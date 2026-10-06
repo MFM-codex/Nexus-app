@@ -326,6 +326,180 @@ service cloud.firestore {
       }
     }
 
+    // ---------- MARKETPLACE (Phase 10) ----------
+
+    // A new listing: yours, with a photo from Cloudinary, a price in naira, and valid text.
+    function validListing(d) {
+      return d.keys().hasOnly(['sellerId', 'title', 'price', 'description', 'category', 'location', 'contact', 'imageUrl', 'sold', 'createdAt'])
+        && d.keys().hasAll(['sellerId', 'title', 'price', 'description', 'category', 'location', 'contact', 'imageUrl', 'sold', 'createdAt'])
+        && d.sellerId == request.auth.uid
+        && d.title is string && d.title.size() > 0 && d.title.size() <= 80
+        && d.price is int && d.price >= 0 && d.price <= 1000000000
+        && d.description is string && d.description.size() <= 1000
+        && d.category in ['Phones', 'Fashion', 'Electronics', 'Home', 'Vehicles', 'Food', 'Other']
+        && d.location is string && d.location.size() <= 60
+        && d.contact is string && d.contact.size() <= 20 && d.contact.matches('^[0-9+]*$')
+        && d.imageUrl is string && d.imageUrl.size() <= 500
+        && d.imageUrl.matches('^https://res[.]cloudinary[.]com/.*')
+        && d.sold == false
+        && d.createdAt == request.time;
+    }
+
+    // listings/{id}: anyone signed in can browse. Only the seller can change "sold" or delete (admins can delete too).
+    match /listings/{listingId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && validListing(request.resource.data) && notBanned();
+      allow update: if signedIn() && resource.data.sellerId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sold'])
+        && request.resource.data.sold is bool;
+      allow delete: if signedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
+    }
+
+    // ---------- GROUPS (Phase 10) ----------
+
+    // A new group or page: yours, with a name and short text.
+    function validCommunity(d) {
+      return d.keys().hasOnly(['ownerId', 'name', 'description', 'category', 'createdAt'])
+        && d.keys().hasAll(['ownerId', 'name', 'description', 'category', 'createdAt'])
+        && d.ownerId == request.auth.uid
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 50
+        && d.description is string && d.description.size() <= 300
+        && d.category is string && d.category.size() <= 30
+        && d.createdAt == request.time;
+    }
+
+    function isGroupMember(gid) {
+      return exists(/databases/$(database)/documents/groups/$(gid)/members/$(request.auth.uid));
+    }
+
+    // groups/{gid}: anyone can see a group exists and join it; only members can read its posts.
+    match /groups/{gid} {
+      allow read: if signedIn();
+      allow create: if signedIn() && validCommunity(request.resource.data) && notBanned();
+      allow update: if false;
+      allow delete: if signedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+
+      match /members/{memberId} {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.auth.uid == memberId && notBanned()
+          && request.resource.data.keys().hasOnly(['joinedAt'])
+          && request.resource.data.joinedAt == request.time;
+        allow update: if false;
+        allow delete: if signedIn() && request.auth.uid == memberId;
+      }
+
+      match /posts/{gpostId} {
+        allow read: if signedIn() && (isGroupMember(gid) || isAdmin());
+        allow create: if signedIn() && isGroupMember(gid) && validNewPost(request.resource.data) && notBanned() && postRateOk();
+        allow update: if signedIn() && isGroupMember(gid) && (isOwnerEdit() || isCounterUpdate());
+        allow delete: if signedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+
+        match /likes/{likerId} {
+          allow read: if signedIn() && isGroupMember(gid);
+          allow create: if signedIn() && request.auth.uid == likerId && isGroupMember(gid)
+            && request.resource.data.keys().hasOnly(['createdAt'])
+            && request.resource.data.createdAt == request.time;
+          allow update: if false;
+          allow delete: if signedIn() && request.auth.uid == likerId;
+        }
+
+        match /comments/{commentId} {
+          allow read: if signedIn() && isGroupMember(gid);
+          allow create: if signedIn() && isGroupMember(gid) && notBanned()
+            && request.resource.data.keys().hasOnly(['authorId', 'text', 'createdAt'])
+            && request.resource.data.authorId == request.auth.uid
+            && request.resource.data.text is string
+            && request.resource.data.text.size() > 0
+            && request.resource.data.text.size() <= 500
+            && request.resource.data.createdAt == request.time;
+          allow update: if false;
+          allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
+        }
+      }
+    }
+
+    // ---------- PAGES (Phase 10) ----------
+
+    // pages/{pid}: anyone can see and follow a page. Only the owner can post on it.
+    match /pages/{pid} {
+      allow read: if signedIn();
+      allow create: if signedIn() && validCommunity(request.resource.data) && notBanned();
+      allow update: if false;
+      allow delete: if signedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+
+      match /followers/{followerId} {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.auth.uid == followerId && notBanned()
+          && request.resource.data.keys().hasOnly(['joinedAt'])
+          && request.resource.data.joinedAt == request.time;
+        allow update: if false;
+        allow delete: if signedIn() && request.auth.uid == followerId;
+      }
+
+      match /posts/{ppostId} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && get(/databases/$(database)/documents/pages/$(pid)).data.ownerId == request.auth.uid
+          && validNewPost(request.resource.data) && notBanned() && postRateOk();
+        allow update: if signedIn() && (isOwnerEdit() || isCounterUpdate());
+        allow delete: if signedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+
+        match /likes/{likerId} {
+          allow read: if signedIn();
+          allow create: if signedIn() && request.auth.uid == likerId
+            && request.resource.data.keys().hasOnly(['createdAt'])
+            && request.resource.data.createdAt == request.time;
+          allow update: if false;
+          allow delete: if signedIn() && request.auth.uid == likerId;
+        }
+
+        match /comments/{commentId} {
+          allow read: if signedIn();
+          allow create: if signedIn() && notBanned()
+            && request.resource.data.keys().hasOnly(['authorId', 'text', 'createdAt'])
+            && request.resource.data.authorId == request.auth.uid
+            && request.resource.data.text is string
+            && request.resource.data.text.size() > 0
+            && request.resource.data.text.size() <= 500
+            && request.resource.data.createdAt == request.time;
+          allow update: if false;
+          allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
+        }
+      }
+    }
+
+    // ---------- EVENTS (Phase 10) ----------
+
+    // A new event: yours, in the future, with short text.
+    function validEvent(d) {
+      return d.keys().hasOnly(['hostId', 'title', 'description', 'location', 'startAt', 'createdAt'])
+        && d.keys().hasAll(['hostId', 'title', 'description', 'location', 'startAt', 'createdAt'])
+        && d.hostId == request.auth.uid
+        && d.title is string && d.title.size() > 0 && d.title.size() <= 80
+        && d.description is string && d.description.size() <= 500
+        && d.location is string && d.location.size() <= 100
+        && d.startAt is timestamp && d.startAt > request.time
+        && d.createdAt == request.time;
+    }
+
+    // events/{id}: public to everyone signed in. Only the host can delete (or an admin).
+    match /events/{eventId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && validEvent(request.resource.data) && notBanned();
+      allow update: if false;
+      allow delete: if signedIn() && (resource.data.hostId == request.auth.uid || isAdmin());
+
+      // events/{id}/rsvps/{uid}: your own answer: going or interested
+      match /rsvps/{rsvpUid} {
+        allow read: if signedIn();
+        allow create, update: if signedIn() && request.auth.uid == rsvpUid && notBanned()
+          && request.resource.data.keys().hasOnly(['status', 'updatedAt'])
+          && request.resource.data.status in ['going', 'interested']
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if signedIn() && request.auth.uid == rsvpUid;
+      }
+    }
+
     // ---------- CHATS (Phase 4) ----------
 
     // chats/{chatId}: a private conversation between two FRIENDS
@@ -387,7 +561,7 @@ service cloud.firestore {
       return d.keys().hasOnly(['reporterId', 'targetType', 'targetId', 'targetUserId', 'reason', 'details', 'status', 'createdAt'])
         && d.keys().hasAll(['reporterId', 'targetType', 'targetId', 'targetUserId', 'reason', 'details', 'status', 'createdAt'])
         && d.reporterId == request.auth.uid
-        && d.targetType in ['user', 'post', 'reel']
+        && d.targetType in ['user', 'post', 'reel', 'listing']
         && d.targetId is string && d.targetId.size() > 0 && d.targetId.size() <= 100
         && d.targetUserId is string && d.targetUserId != request.auth.uid
         && d.reason in ['spam', 'harassment', 'fake', 'inappropriate', 'other']

@@ -99,6 +99,13 @@ class FriendRepository {
         users.document(me).collection("blocked").document(other).delete().await()
     }
 
+    // "People you may know": some users who are not me, friends, pending or blocked.
+    suspend fun suggestions(exclude: Set<String>): List<Profile> =
+        users.limit(60).get().await().documents
+            .map { it.toProfile() }
+            .filter { it.uid !in exclude }
+            .take(20)
+
     // Find people whose username starts with the text typed.
     suspend fun searchUsers(prefix: String): List<Profile> =
         users.orderBy("username")

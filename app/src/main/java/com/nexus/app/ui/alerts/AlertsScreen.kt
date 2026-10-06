@@ -2,6 +2,7 @@ package com.nexus.app.ui.alerts
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,9 +13,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,6 +36,9 @@ fun AlertsScreen(
     vm: NotificationsViewModel,
     onOpenUser: (String) -> Unit,
     onOpenPost: (String) -> Unit,
+    isIncomingRequest: (String) -> Boolean = { false },
+    onConfirm: (String) -> Unit = {},
+    onDecline: (String) -> Unit = {},
 ) {
     val loadedItems by vm.items.collectAsState()
     val items = loadedItems.orEmpty()
@@ -103,6 +109,16 @@ fun AlertsScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        // like Facebook: answer a friend request right here
+                        if (n.type == "friend_request" && isIncomingRequest(n.actorId)) {
+                            Row(
+                                Modifier.padding(top = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Button(onClick = { vm.markRead(n.id); onConfirm(n.actorId) }) { Text("Confirm") }
+                                OutlinedButton(onClick = { vm.markRead(n.id); onDecline(n.actorId) }) { Text("Delete") }
+                            }
+                        }
                     }
                 }
                 HorizontalDivider()

@@ -7,6 +7,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -17,6 +18,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.google.firebase.auth.FirebaseUser
+import com.nexus.app.data.Relation
 import com.nexus.app.ui.admin.AdminScreen
 import com.nexus.app.ui.admin.AdminViewModel
 import com.nexus.app.ui.admin.AdminViewModelFactory
@@ -32,22 +34,41 @@ import com.nexus.app.ui.chat.ChatsViewModelFactory
 import com.nexus.app.ui.comments.CommentsScreen
 import com.nexus.app.ui.comments.CommentsViewModel
 import com.nexus.app.ui.comments.CommentsViewModelFactory
+import com.nexus.app.ui.community.CommunitiesScreen
+import com.nexus.app.ui.community.CommunitiesViewModel
+import com.nexus.app.ui.community.CommunitiesViewModelFactory
+import com.nexus.app.ui.community.CommunityDetailScreen
+import com.nexus.app.ui.community.CommunityDetailViewModel
+import com.nexus.app.ui.community.CommunityDetailViewModelFactory
+import com.nexus.app.ui.community.NewCommunityPostScreen
+import com.nexus.app.ui.community.NewCommunityScreen
 import com.nexus.app.ui.components.LoadingDots
+import com.nexus.app.ui.events.EventDetailScreen
+import com.nexus.app.ui.events.EventDetailViewModel
+import com.nexus.app.ui.events.EventDetailViewModelFactory
+import com.nexus.app.ui.events.EventsScreen
+import com.nexus.app.ui.events.EventsViewModel
+import com.nexus.app.ui.events.EventsViewModelFactory
+import com.nexus.app.ui.events.NewEventScreen
 import com.nexus.app.ui.friends.FriendsScreen
 import com.nexus.app.ui.friends.FriendsViewModel
 import com.nexus.app.ui.friends.FriendsViewModelFactory
 import com.nexus.app.ui.friends.UserProfileScreen
 import com.nexus.app.ui.home.FeedViewModel
+import com.nexus.app.ui.home.FeedViewModelFactory
+import com.nexus.app.ui.home.HomeScreen
+import com.nexus.app.ui.home.NewPostScreen
+import com.nexus.app.ui.marketplace.ListingScreen
+import com.nexus.app.ui.marketplace.ListingViewModel
+import com.nexus.app.ui.marketplace.ListingViewModelFactory
+import com.nexus.app.ui.marketplace.MarketplaceScreen
+import com.nexus.app.ui.marketplace.MarketplaceViewModel
+import com.nexus.app.ui.marketplace.MarketplaceViewModelFactory
+import com.nexus.app.ui.marketplace.NewListingScreen
 import com.nexus.app.ui.menu.BlockedScreen
 import com.nexus.app.ui.menu.HelpScreen
 import com.nexus.app.ui.menu.MenuScreen
 import com.nexus.app.ui.menu.SettingsScreen
-import com.nexus.app.ui.saved.SavedScreen
-import com.nexus.app.ui.saved.SavedViewModel
-import com.nexus.app.ui.saved.SavedViewModelFactory
-import com.nexus.app.ui.home.FeedViewModelFactory
-import com.nexus.app.ui.home.HomeScreen
-import com.nexus.app.ui.home.NewPostScreen
 import com.nexus.app.ui.profile.EditProfileScreen
 import com.nexus.app.ui.profile.ProfileScreen
 import com.nexus.app.ui.profile.ProfileViewModel
@@ -57,6 +78,9 @@ import com.nexus.app.ui.reels.NewReelScreen
 import com.nexus.app.ui.reels.ReelsScreen
 import com.nexus.app.ui.reels.ReelsViewModel
 import com.nexus.app.ui.reels.ReelsViewModelFactory
+import com.nexus.app.ui.saved.SavedScreen
+import com.nexus.app.ui.saved.SavedViewModel
+import com.nexus.app.ui.saved.SavedViewModelFactory
 
 // If an admin banned this account we show a "suspended" page instead of the app.
 @Composable
@@ -99,30 +123,23 @@ private fun MainContent(
     profileVm: ProfileViewModel,
     onSignOut: () -> Unit,
 ) {
-    val feedVm: FeedViewModel = viewModel(
-        key = "feed_${user.uid}",
-        factory = FeedViewModelFactory(user.uid),
-    )
-    val reelsVm: ReelsViewModel = viewModel(
-        key = "reels_${user.uid}",
-        factory = ReelsViewModelFactory(user.uid),
-    )
-    val friendsVm: FriendsViewModel = viewModel(
-        key = "friends_${user.uid}",
-        factory = FriendsViewModelFactory(user.uid),
-    )
-    val chatsVm: ChatsViewModel = viewModel(
-        key = "chats_${user.uid}",
-        factory = ChatsViewModelFactory(user.uid),
-    )
-    val notifVm: NotificationsViewModel = viewModel(
-        key = "notifs_${user.uid}",
-        factory = NotificationsViewModelFactory(user.uid),
-    )
+    val uid = user.uid
+    val feedVm: FeedViewModel = viewModel(key = "feed_$uid", factory = FeedViewModelFactory(uid))
+    val reelsVm: ReelsViewModel = viewModel(key = "reels_$uid", factory = ReelsViewModelFactory(uid))
+    val friendsVm: FriendsViewModel = viewModel(key = "friends_$uid", factory = FriendsViewModelFactory(uid))
+    val chatsVm: ChatsViewModel = viewModel(key = "chats_$uid", factory = ChatsViewModelFactory(uid))
+    val notifVm: NotificationsViewModel = viewModel(key = "notifs_$uid", factory = NotificationsViewModelFactory(uid))
+    val marketVm: MarketplaceViewModel = viewModel(key = "market_$uid", factory = MarketplaceViewModelFactory(uid))
+    val eventsVm: EventsViewModel = viewModel(key = "events_$uid", factory = EventsViewModelFactory(uid))
+    val groupsVm: CommunitiesViewModel = viewModel(key = "groups_$uid", factory = CommunitiesViewModelFactory("groups", uid))
+    val pagesVm: CommunitiesViewModel = viewModel(key = "pages_$uid", factory = CommunitiesViewModelFactory("pages", uid))
+
     val unreadChats by chatsVm.totalUnread.collectAsState()
     val unreadAlerts by notifVm.unreadCount.collectAsState()
     val isAdmin by adminVm.isAdmin.collectAsState()
     val myProfile by profileVm.profile.collectAsState()
+    val friendsState by friendsVm.state.collectAsState()
+    val friendRequests = friendsState.friendships.count { it.status == "pending" && it.addresseeId == uid }
 
     val nav = rememberNavController()
     val backStack by nav.currentBackStackEntryAsState()
@@ -139,100 +156,50 @@ private fun MainContent(
 
     Scaffold(
         topBar = {
-            // Only the four main tabs show the top bar; other pages are full screen
+            // Only the six main tabs show the top bar; other pages are full screen
             if (route != null && route in tabRoutes) {
                 TopNav(
                     route = route,
                     unreadChats = unreadChats,
                     unreadAlerts = unreadAlerts,
+                    friendRequests = friendRequests,
                     onTab = { goTab(it) },
                     onSearch = { goTab("friends") },
-                    onChats = { nav.navigate("chats") { launchSingleTop = true } },
+                    onMenu = { nav.navigate("menu") { launchSingleTop = true } },
+                    onCreate = { target -> nav.navigate(target) },
                 )
             }
         },
     ) { padding ->
         NavHost(nav, startDestination = "home", modifier = Modifier.padding(padding)) {
+
+            // ---------------- the six tabs ----------------
             composable("home") {
                 HomeScreen(
                     vm = feedVm,
-                    myUid = user.uid,
+                    myUid = uid,
                     myProfile = myProfile,
                     onNewPost = { nav.navigate("newPost") },
                     onOpenComments = { postId -> nav.navigate("comments/$postId") },
                 )
             }
-            composable("newPost") {
-                NewPostScreen(vm = feedVm, onDone = { nav.popBackStack() })
+            composable("friends") {
+                FriendsScreen(vm = friendsVm, myUid = uid, onOpenUser = { id -> nav.navigate("user/$id") })
             }
-            composable(
-                route = "comments/{postId}",
-                arguments = listOf(navArgument("postId") { type = NavType.StringType }),
-            ) { entry ->
-                val postId = entry.arguments?.getString("postId") ?: return@composable
-                val commentsVm: CommentsViewModel = viewModel(
-                    key = "comments_$postId",
-                    factory = CommentsViewModelFactory(postId, user.uid),
-                )
-                CommentsScreen(
-                    vm = commentsVm,
-                    myUid = user.uid,
+            composable("chats") {
+                ChatsScreen(
+                    vm = chatsVm,
+                    myUid = uid,
                     onBack = { nav.popBackStack() },
-                    onCountChange = { delta -> feedVm.adjustCommentCount(postId, delta) },
+                    onOpenChat = { otherId -> nav.navigate("chat/$otherId") },
                 )
             }
             composable("reels") {
                 ReelsScreen(
                     vm = reelsVm,
-                    myUid = user.uid,
+                    myUid = uid,
                     onNewReel = { nav.navigate("newReel") },
                     onOpenComments = { reelId -> nav.navigate("reelComments/$reelId") },
-                )
-            }
-            composable("newReel") {
-                NewReelScreen(vm = reelsVm, onDone = { nav.popBackStack() })
-            }
-            composable(
-                route = "reelComments/{reelId}",
-                arguments = listOf(navArgument("reelId") { type = NavType.StringType }),
-            ) { entry ->
-                val reelId = entry.arguments?.getString("reelId") ?: return@composable
-                val reelCommentsVm: CommentsViewModel = viewModel(
-                    key = "reelcomments_$reelId",
-                    factory = CommentsViewModelFactory(reelId, user.uid, "reels"),
-                )
-                CommentsScreen(
-                    vm = reelCommentsVm,
-                    myUid = user.uid,
-                    onBack = { nav.popBackStack() },
-                    onCountChange = { delta -> reelsVm.adjustCommentCount(reelId, delta) },
-                )
-            }
-            composable("friends") {
-                FriendsScreen(
-                    vm = friendsVm,
-                    myUid = user.uid,
-                    onOpenUser = { id -> nav.navigate("user/$id") },
-                )
-            }
-            composable(
-                route = "user/{uid}",
-                arguments = listOf(navArgument("uid") { type = NavType.StringType }),
-            ) { entry ->
-                val otherUid = entry.arguments?.getString("uid") ?: return@composable
-                UserProfileScreen(
-                    vm = friendsVm,
-                    otherUid = otherUid,
-                    onBack = { nav.popBackStack() },
-                    onMessage = { nav.navigate("chat/$otherUid") },
-                )
-            }
-            composable("chats") {
-                ChatsScreen(
-                    vm = chatsVm,
-                    myUid = user.uid,
-                    onBack = { nav.popBackStack() },
-                    onOpenChat = { otherId -> nav.navigate("chat/$otherId") },
                 )
             }
             composable("alerts") {
@@ -240,22 +207,39 @@ private fun MainContent(
                     vm = notifVm,
                     onOpenUser = { id -> nav.navigate("user/$id") },
                     onOpenPost = { postId -> nav.navigate("comments/$postId") },
+                    isIncomingRequest = { id -> friendsVm.relationWith(id) == Relation.INCOMING },
+                    onConfirm = { id -> friendsVm.accept(id) },
+                    onDecline = { id -> friendsVm.remove(id) },
                 )
             }
-            composable(
-                route = "chat/{uid}",
-                arguments = listOf(navArgument("uid") { type = NavType.StringType }),
-            ) { entry ->
-                val otherUid = entry.arguments?.getString("uid") ?: return@composable
-                val chatVm: ChatViewModel = viewModel(
-                    key = "chat_${user.uid}_$otherUid",
-                    factory = ChatViewModelFactory(user.uid, otherUid),
+            composable("marketplace") {
+                MarketplaceScreen(
+                    vm = marketVm,
+                    onSell = { nav.navigate("newListing") },
+                    onOpen = { id -> nav.navigate("listing/$id") },
                 )
-                ChatScreen(
-                    vm = chatVm,
-                    myUid = user.uid,
+            }
+
+            // ---------------- menu pages ----------------
+            composable("menu") {
+                MenuScreen(
+                    profile = myProfile,
+                    isAdmin = isAdmin,
+                    unreadChats = unreadChats,
                     onBack = { nav.popBackStack() },
-                    onOpenProfile = { nav.navigate("user/$otherUid") },
+                    onOpenProfile = { nav.navigate("profile") },
+                    onMessages = { goTab("chats") },
+                    onGroups = { nav.navigate("communities/groups") },
+                    onFriends = { goTab("friends") },
+                    onReels = { goTab("reels") },
+                    onMarketplace = { goTab("marketplace") },
+                    onPages = { nav.navigate("communities/pages") },
+                    onSaved = { nav.navigate("saved") },
+                    onEvents = { nav.navigate("events") },
+                    onAdmin = { nav.navigate("admin") },
+                    onSettings = { nav.navigate("settings") },
+                    onHelp = { nav.navigate("help") },
+                    onLogout = onSignOut,
                 )
             }
             composable("profile") {
@@ -268,29 +252,11 @@ private fun MainContent(
                     onBack = { nav.popBackStack() },
                 )
             }
-            composable("menu") {
-                MenuScreen(
-                    profile = myProfile,
-                    isAdmin = isAdmin,
-                    unreadChats = unreadChats,
-                    unreadAlerts = unreadAlerts,
-                    onOpenProfile = { nav.navigate("profile") },
-                    onFriends = { goTab("friends") },
-                    onReels = { goTab("reels") },
-                    onChats = { nav.navigate("chats") { launchSingleTop = true } },
-                    onAlerts = { goTab("alerts") },
-                    onSaved = { nav.navigate("saved") },
-                    onAdmin = { nav.navigate("admin") },
-                    onSettings = { nav.navigate("settings") },
-                    onHelp = { nav.navigate("help") },
-                    onLogout = onSignOut,
-                )
+            composable("editProfile") {
+                EditProfileScreen(vm = profileVm, onDone = { nav.popBackStack() })
             }
             composable("saved") {
-                val savedVm: SavedViewModel = viewModel(
-                    key = "saved_${user.uid}",
-                    factory = SavedViewModelFactory(user.uid),
-                )
+                val savedVm: SavedViewModel = viewModel(key = "saved_$uid", factory = SavedViewModelFactory(uid))
                 SavedScreen(vm = savedVm, onBack = { nav.popBackStack() })
             }
             composable("settings") {
@@ -313,8 +279,214 @@ private fun MainContent(
                     onOpenUser = { id -> nav.navigate("user/$id") },
                 )
             }
-            composable("editProfile") {
-                EditProfileScreen(vm = profileVm, onDone = { nav.popBackStack() })
+
+            // ---------------- posts, people, chat ----------------
+            composable("newPost") {
+                NewPostScreen(vm = feedVm, onDone = { nav.popBackStack() })
+            }
+            composable(
+                route = "comments/{postId}",
+                arguments = listOf(navArgument("postId") { type = NavType.StringType }),
+            ) { entry ->
+                val postId = entry.arguments?.getString("postId") ?: return@composable
+                val commentsVm: CommentsViewModel = viewModel(
+                    key = "comments_$postId",
+                    factory = CommentsViewModelFactory(postId, uid),
+                )
+                CommentsScreen(
+                    vm = commentsVm,
+                    myUid = uid,
+                    onBack = { nav.popBackStack() },
+                    onCountChange = { delta -> feedVm.adjustCommentCount(postId, delta) },
+                )
+            }
+            composable(
+                route = "user/{uid}",
+                arguments = listOf(navArgument("uid") { type = NavType.StringType }),
+            ) { entry ->
+                val otherUid = entry.arguments?.getString("uid") ?: return@composable
+                UserProfileScreen(
+                    vm = friendsVm,
+                    otherUid = otherUid,
+                    onBack = { nav.popBackStack() },
+                    onMessage = { nav.navigate("chat/$otherUid") },
+                )
+            }
+            composable(
+                route = "chat/{uid}",
+                arguments = listOf(navArgument("uid") { type = NavType.StringType }),
+            ) { entry ->
+                val otherUid = entry.arguments?.getString("uid") ?: return@composable
+                val chatVm: ChatViewModel = viewModel(
+                    key = "chat_${uid}_$otherUid",
+                    factory = ChatViewModelFactory(uid, otherUid),
+                )
+                ChatScreen(
+                    vm = chatVm,
+                    myUid = uid,
+                    onBack = { nav.popBackStack() },
+                    onOpenProfile = { nav.navigate("user/$otherUid") },
+                )
+            }
+
+            // ---------------- reels ----------------
+            composable("newReel") {
+                NewReelScreen(vm = reelsVm, onDone = { nav.popBackStack() })
+            }
+            composable(
+                route = "reelComments/{reelId}",
+                arguments = listOf(navArgument("reelId") { type = NavType.StringType }),
+            ) { entry ->
+                val reelId = entry.arguments?.getString("reelId") ?: return@composable
+                val reelCommentsVm: CommentsViewModel = viewModel(
+                    key = "reelcomments_$reelId",
+                    factory = CommentsViewModelFactory(reelId, uid, "reels"),
+                )
+                CommentsScreen(
+                    vm = reelCommentsVm,
+                    myUid = uid,
+                    onBack = { nav.popBackStack() },
+                    onCountChange = { delta -> reelsVm.adjustCommentCount(reelId, delta) },
+                )
+            }
+
+            // ---------------- marketplace ----------------
+            composable("newListing") {
+                NewListingScreen(vm = marketVm, onDone = { nav.popBackStack() })
+            }
+            composable(
+                route = "listing/{id}",
+                arguments = listOf(navArgument("id") { type = NavType.StringType }),
+            ) { entry ->
+                val listingId = entry.arguments?.getString("id") ?: return@composable
+                val listingVm: ListingViewModel = viewModel(
+                    key = "listing_$listingId",
+                    factory = ListingViewModelFactory(listingId, uid),
+                )
+                ListingScreen(vm = listingVm, myUid = uid, onBack = { nav.popBackStack() })
+            }
+
+            // ---------------- groups and pages ----------------
+            composable(
+                route = "communities/{type}",
+                arguments = listOf(navArgument("type") { type = NavType.StringType }),
+            ) { entry ->
+                val type = entry.arguments?.getString("type") ?: return@composable
+                CommunitiesScreen(
+                    type = type,
+                    vm = if (type == "groups") groupsVm else pagesVm,
+                    onBack = { nav.popBackStack() },
+                    onCreate = { nav.navigate("newCommunity/$type") },
+                    onOpen = { id -> nav.navigate("community/$type/$id") },
+                )
+            }
+            composable(
+                route = "newCommunity/{type}",
+                arguments = listOf(navArgument("type") { type = NavType.StringType }),
+            ) { entry ->
+                val type = entry.arguments?.getString("type") ?: return@composable
+                NewCommunityScreen(
+                    type = type,
+                    vm = if (type == "groups") groupsVm else pagesVm,
+                    onBack = { nav.popBackStack() },
+                    onCreated = { id ->
+                        nav.navigate("community/$type/$id") {
+                            popUpTo("newCommunity/{type}") { inclusive = true }
+                        }
+                    },
+                )
+            }
+            composable(
+                route = "community/{type}/{id}",
+                arguments = listOf(
+                    navArgument("type") { type = NavType.StringType },
+                    navArgument("id") { type = NavType.StringType },
+                ),
+            ) { entry ->
+                val type = entry.arguments?.getString("type") ?: return@composable
+                val id = entry.arguments?.getString("id") ?: return@composable
+                val detailVm: CommunityDetailViewModel = viewModel(
+                    key = "community_${type}_$id",
+                    factory = CommunityDetailViewModelFactory(type, id, uid),
+                )
+                CommunityDetailScreen(
+                    type = type,
+                    vm = detailVm,
+                    myUid = uid,
+                    onBack = { nav.popBackStack() },
+                    onNewPost = { nav.navigate("communityPost/$type/$id") },
+                    onOpenComments = { postId -> nav.navigate("communityComments/$type/$id/$postId") },
+                )
+            }
+            composable(
+                route = "communityPost/{type}/{id}",
+                arguments = listOf(
+                    navArgument("type") { type = NavType.StringType },
+                    navArgument("id") { type = NavType.StringType },
+                ),
+            ) { entry ->
+                val type = entry.arguments?.getString("type") ?: return@composable
+                val id = entry.arguments?.getString("id") ?: return@composable
+                // same view model as the page behind it, so the new post shows up there
+                val parentEntry = remember(entry) { nav.getBackStackEntry("community/{type}/{id}") }
+                val detailVm: CommunityDetailViewModel = viewModel(
+                    viewModelStoreOwner = parentEntry,
+                    key = "community_${type}_$id",
+                    factory = CommunityDetailViewModelFactory(type, id, uid),
+                )
+                NewCommunityPostScreen(vm = detailVm, onDone = { nav.popBackStack() })
+            }
+            composable(
+                route = "communityComments/{type}/{id}/{postId}",
+                arguments = listOf(
+                    navArgument("type") { type = NavType.StringType },
+                    navArgument("id") { type = NavType.StringType },
+                    navArgument("postId") { type = NavType.StringType },
+                ),
+            ) { entry ->
+                val type = entry.arguments?.getString("type") ?: return@composable
+                val id = entry.arguments?.getString("id") ?: return@composable
+                val postId = entry.arguments?.getString("postId") ?: return@composable
+                val communityCommentsVm: CommentsViewModel = viewModel(
+                    key = "communitycomments_${type}_${id}_$postId",
+                    factory = CommentsViewModelFactory(postId, uid, "$type/$id/posts"),
+                )
+                CommentsScreen(
+                    vm = communityCommentsVm,
+                    myUid = uid,
+                    onBack = { nav.popBackStack() },
+                    onCountChange = {},
+                )
+            }
+
+            // ---------------- events ----------------
+            composable("events") {
+                EventsScreen(
+                    vm = eventsVm,
+                    onBack = { nav.popBackStack() },
+                    onCreate = { nav.navigate("newEvent") },
+                    onOpen = { id -> nav.navigate("event/$id") },
+                )
+            }
+            composable("newEvent") {
+                NewEventScreen(
+                    vm = eventsVm,
+                    onBack = { nav.popBackStack() },
+                    onCreated = { id ->
+                        nav.navigate("event/$id") { popUpTo("newEvent") { inclusive = true } }
+                    },
+                )
+            }
+            composable(
+                route = "event/{id}",
+                arguments = listOf(navArgument("id") { type = NavType.StringType }),
+            ) { entry ->
+                val eventId = entry.arguments?.getString("id") ?: return@composable
+                val eventVm: EventDetailViewModel = viewModel(
+                    key = "event_$eventId",
+                    factory = EventDetailViewModelFactory(eventId, uid),
+                )
+                EventDetailScreen(vm = eventVm, myUid = uid, onBack = { nav.popBackStack() })
             }
         }
     }

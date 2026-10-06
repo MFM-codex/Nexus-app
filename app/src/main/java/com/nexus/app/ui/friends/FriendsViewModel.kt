@@ -24,6 +24,7 @@ data class FriendsState(
     val query: String = "",                            // what I typed in the search box
     val results: List<Profile> = emptyList(),
     val searching: Boolean = false,
+    val suggestions: List<Profile> = emptyList(),      // people you may know
     val loaded: Boolean = false,                       // the friends list has loaded at least once
     val blocked: Set<String> = emptySet(),             // people I blocked
     val error: String? = null,
@@ -147,6 +148,19 @@ class FriendsViewModel(private val me: String) : ViewModel() {
                 "You already reported this person, or reporting isn't allowed right now."
             }
             onResult(message)
+        }
+    }
+
+    fun loadSuggestions() {
+        viewModelScope.launch {
+            try {
+                val s = _state.value
+                val exclude = s.friendships.map { it.other(me) }.toSet() + s.blocked + me
+                val found = repo.suggestions(exclude)
+                _state.update { it.copy(suggestions = found) }
+            } catch (e: Exception) {
+                // not important
+            }
         }
     }
 

@@ -1,4 +1,4 @@
-# Nexus (Phase 9)
+# Nexus (Phase 10)
 
 Kotlin + Jetpack Compose + Firebase Auth/Firestore + Cloudinary (images).
 
@@ -74,3 +74,11 @@ The 4th tab is now Menu (hamburger): profile, shortcuts, Saved, Settings & priva
 users/{uid}/saved/{postId}   savedAt   (your private saved posts)
 Settings (theme, data saver) are stored on the phone, not in Firebase.
 Groups, Pages, Marketplace and Events are shown as "coming soon".
+
+## Phase 10: Facebook layout + Marketplace, Groups, Pages, Events
+Top bar: logo, + (create), search, menu. Six tabs: Home, Friends, Messages, Reels, Alerts, Marketplace.
+listings/{id}                 sellerId, title, price, description, category, location, contact, imageUrl, sold, createdAt
+groups/{id}  members/{uid}  posts/{id} (likes, comments)
+pages/{id}   followers/{uid} posts/{id} (likes, comments)   only the owner posts on a page
+events/{id}  rsvps/{uid}      hostId, title, description, location, startAt, createdAt
+Groups: only members can read posts. Pages, events, listings and reels are public to signed-in users.

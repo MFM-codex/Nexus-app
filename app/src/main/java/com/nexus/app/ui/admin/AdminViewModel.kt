@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.nexus.app.data.AdminRepository
+import com.nexus.app.data.Listing
+import com.nexus.app.data.ListingRepository
 import com.nexus.app.data.Post
 import com.nexus.app.data.PostRepository
 import com.nexus.app.data.Profile
@@ -28,6 +30,7 @@ data class ReportUi(
     val target: Profile?,
     val post: Post?,
     val reel: Reel? = null,
+    val listing: Listing? = null,
 )
 
 // Knows whether I'm an admin, whether I'm banned, and (for admins) the open reports.
@@ -36,6 +39,7 @@ class AdminViewModel(private val me: String) : ViewModel() {
     private val repo = AdminRepository()
     private val postRepo = PostRepository()
     private val reelRepo = ReelRepository()
+    private val listingRepo = ListingRepository()
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
@@ -93,7 +97,16 @@ class AdminViewModel(private val me: String) : ViewModel() {
             } else {
                 null
             }
-            ReportUi(r, people[r.reporterId], people[r.targetUserId], post, reel)
+            val listing = if (r.targetType == "listing") {
+                try {
+                    listingRepo.get(r.targetId)
+                } catch (e: Exception) {
+                    null
+                }
+            } else {
+                null
+            }
+            ReportUi(r, people[r.reporterId], people[r.targetUserId], post, reel, listing)
         }
     }
 
@@ -103,6 +116,11 @@ class AdminViewModel(private val me: String) : ViewModel() {
 
     fun deletePost(report: Report) = act("Post deleted.") {
         repo.deletePost(report.targetId)
+        repo.setStatus(report.id, "resolved")
+    }
+
+    fun deleteListing(report: Report) = act("Listing deleted.") {
+        repo.deleteListing(report.targetId)
         repo.setStatus(report.id, "resolved")
     }
 
